@@ -1,0 +1,15 @@
+name: gouhfi
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pip:
+    - nnunetv2
+    - nibabel
+    - numpy
+    - git+https://github.com/mafortin/GOUHFI.git
