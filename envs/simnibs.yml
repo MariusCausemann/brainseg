@@ -1,0 +1,24 @@
+name: simnibs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - h5py
+  - matplotlib
+  - nibabel
+  - numba
+  - numpy=1.26.4
+  - pillow
+  - requests
+  - scipy
+  - tbb-devel
+  - cgal-cpp=5.5.1
+  - jsonschema
+  - petsc4py
+  - python-mumps
+  - pip:
+    - fmm3dpy
+    - pygpc==0.4.1
+    - samseg
+
