@@ -144,7 +144,6 @@ rule run_fastsurfer:
         "envs/fastsurfer.yml"
     shell:
         """
-        pip install fastremap nibabel
         tmp_io=$(mktemp -d -t FS_io_XXXXXXXX)
         trap "rm -rf $tmp_io" EXIT
         export FASTSURFER_HOME=.models/fastsurfer
