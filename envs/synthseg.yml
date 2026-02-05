@@ -1,0 +1,14 @@
+name: synthseg
+channels:
+  - anaconda
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pip
+  - tensorflow=2.2.0 
+  - keras=2.3.1
+  - nibabel
+  - matplotlib
+  - pip:
+      - git+https://github.com/BBillot/SynthSeg.git
+
