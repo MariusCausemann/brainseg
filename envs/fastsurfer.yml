@@ -25,6 +25,7 @@ dependencies:
   - tqdm>=4.65
   - yacs>=0.1.8
   - pip:
+      - fastremap
       - pyrr>=0.10.3
       - git+https://github.com/Deep-MI/FastSurfer.git
 
