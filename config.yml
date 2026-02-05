@@ -3,4 +3,4 @@ input_dir: "inputs"
 results_dir: "results"
 
 # GOUHFI Settings
-gouhfi_version: "v1"
+gouhfi_version: "v2"
