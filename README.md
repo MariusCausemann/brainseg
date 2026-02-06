@@ -36,6 +36,7 @@ This pipeline currently supports the following deep-learning-based segmentation 
    * **Resolution:** Native (pipeline uses the upsampled output to match input).
 
    * **CSF Availability:** Yes.
+   * **Segmented regions:** Charm provides the following segmentation labels: White-Matter, Gray-Matter, CSF, Bone, Scalp, Eye_bals, Compact_bone, Spongy_bone, Blood, Muscle, Cartilage, Fat, Electrode, Saline_or_gel
 
 ## Comparison Output
 
