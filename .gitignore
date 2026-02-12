@@ -1,5 +1,6 @@
 .models
 .snakemake
+.containers
 results
 trained_model
 inputs
