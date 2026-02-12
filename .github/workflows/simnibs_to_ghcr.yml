@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag (e.g., latest, v1.0)'
+        description: 'simnibs'
         required: true
         default: 'latest'
 
