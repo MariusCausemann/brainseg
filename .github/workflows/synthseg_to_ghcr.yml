@@ -1,13 +1,13 @@
-name: Build and Push SimNIBS to GHCR
+name: Build and Push synthseg to GHCR
 
 on:
   # This allows you to run the workflow manually from the Actions tab
   workflow_dispatch:
     inputs:
       tag:
-        description: 'simnibs'
+        description: 'synthseg'
         required: true
-        default: 'simnibs'
+        default: 'synthseg'
 
 env:
   REGISTRY: ghcr.io
@@ -43,7 +43,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: dockerfiles/Dockerfile.simnibs
+          file: dockerfiles/Dockerfile.synthseg
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
