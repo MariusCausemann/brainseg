@@ -1,0 +1,42 @@
+FROM mambaorg/micromamba:1.5-bookworm-slim
+
+RUN CONDA_OVERRIDE_CUDA=0 micromamba install -y -n base -c conda-forge \
+    python=3.11 \
+    pip \
+    h5py \
+    matplotlib \
+    nibabel \
+    numba \
+    numpy=1.26.4 \
+    pillow \
+    requests \
+    scipy \
+    tbb-devel \
+    cgal-cpp=5.5.1 \
+    boost-cpp=1.78.0 \
+    eigen \
+    zlib \
+    jsonschema \
+    petsc4py \
+    python-mumps \
+    "gcc<12" \
+    "gxx<12" \
+    git \
+    && micromamba clean --all --yes
+
+# Ensure the environment is active for all subsequent RUN commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+ENV PATH="/opt/conda/bin:$PATH"
+
+# Install Pip-only dependencies
+RUN pip install --no-cache-dir \
+    fmm3dpy \
+    pygpc==0.4.1 \
+    samseg
+
+# Install SimNIBS
+RUN CONDA_PREFIX=/opt/conda pip install --no-cache-dir --no-deps \
+    git+https://github.com/simnibs/simnibs.git
+
+# Default args (prints help if run without args)
+CMD ["--help"]

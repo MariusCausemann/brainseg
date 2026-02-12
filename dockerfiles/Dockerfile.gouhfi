@@ -1,0 +1,87 @@
+# syntax=docker/dockerfile:1
+FROM python:3.10-slim
+
+# Install System Basics
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    unzip \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# ake in ANTsPyNet Keras Weights (New Step)
+# ANTsPyNet looks for weights in ~/.keras/ANTsXNet/ by default.
+# We create a global directory for this and point HOME to it.
+WORKDIR /opt/antspynet_cache/.keras/ANTsXNet
+RUN curl -L "https://ndownloader.figshare.com/files/34821874" -o brainExtractionRobustT1.h5  && \
+    curl -L "https://ndownloader.figshare.com/files/22597175" -o S_template3_resampled.nii
+
+
+# Install PyTorch (Native CPU)
+RUN pip install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+ENV GOUHFI_HOME="/opt/gouhfi"
+WORKDIR $GOUHFI_HOME/trained_model
+
+RUN curl -L "https://zenodo.org/records/17920473/files/gouhfi_2p0_brain_seg.zip" -o weights.zip && \
+    unzip -q weights.zip && \
+    rm weights.zip && \
+    python3 - <<'EOF'
+import torch
+import os
+# Define the keys required for nnU-Net inference
+KEEP_KEYS = ['network_weights', 'init_args', 'trainer_name', 'inference_allowed_mirroring_axes']
+for root, _, files in os.walk('.'):
+    for f in files:
+        if f.endswith('.pth'):
+            path = os.path.join(root, f)
+            # Load to CPU to keep memory footprint low during build
+            ckpt = torch.load(path, map_location='cpu')
+            slim_ckpt = {k: v for k, v in ckpt.items() if k in KEEP_KEYS}
+            torch.save(slim_ckpt, path)
+            print(f"Successfully stripped: {path}")
+
+EOF
+
+# 4. Install All GOUHFI Dependencies
+# This prevents GOUHFI from trying to pull them during install
+RUN pip install --no-cache-dir --upgrade-strategy only-if-needed \
+    nnunetv2  \
+    acvl_utils \
+    batchgenerators \
+    matplotlib \
+    pandas \
+    scipy \
+    scikit-image \
+    simpleitk \
+    nibabel \
+    dicom2nifti \
+    seaborn \
+    imagecodecs \
+    tqdm \
+    scikit-learn \
+    einops \
+    batchgeneratorsv2 \
+    blosc2 \
+    sympy \
+    graphviz \
+    tifffile \
+    requests \
+    yacs \
+    antspyx>=0.6.1 \
+    tensorflow-cpu
+
+
+# 5. Clone and Install GOUHFI
+WORKDIR $GOUHFI_HOME
+RUN pip install --no-deps --no-cache-dir antspynet git+https://github.com/mafortin/GOUHFI
+
+    
+# 8. Configuration
+# We set HOME to /opt/antspynet_cache so ANTsPyNet finds the .keras folder automatically.
+ENV HOME="/opt/antspynet_cache"
+
+# 9. Entrypoint
+CMD ["run_gouhfi", "--help"]

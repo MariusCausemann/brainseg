@@ -1,0 +1,48 @@
+# 1. Base Image: Python 3.8 (Required by SynthSeg/TensorFlow 2.2)
+FROM python:3.8-slim
+
+# 2. Install System Dependencies
+# 'git' and 'curl' are standard requirements
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 5. Setup SynthSeg Scripts & Data Directory
+# The pip install doesn't always expose the CLI scripts nicely,
+# so we download the source code (just like your Snakefile does) to get them.
+WORKDIR /opt/synthseg
+
+# Download and extract the code repository
+RUN curl -L "https://github.com/BBillot/SynthSeg/archive/refs/heads/master.tar.gz" | \
+    tar -xzf - --strip-components=1 -C /opt/synthseg
+
+# 6. Bake in the Weights
+# We download the exact 2.0 weights referenced in your Snakefile.
+RUN mkdir -p models && \
+    curl -L "https://github.com/MariusCausemann/brainseg/releases/download/synthseg2.0/synthseg_2.0.h5" \
+    -o models/synthseg_2.0.h5
+
+# 3. Install TensorFlow (CPU-Only) & Dependencies
+# We explicitly target 'tensorflow-cpu' to avoid downloading NVIDIA CUDA libs.
+# SynthSeg requires strict versions: TF 2.2 and Keras 2.3.1
+RUN pip install --no-cache-dir \
+    protobuf==3.20.3 \
+    tensorflow-cpu==2.2.0 \
+    keras==2.3.1 \
+    numpy==1.23.5 \
+    h5py==2.10.0 \
+    nibabel \
+    matplotlib
+
+
+# 7. Configuration
+# Set Env Var for your runner script to find the weights
+ENV SYNTHSEG_MODEL_PATH="/opt/synthseg/models/synthseg_2.0.h5"
+
+# 8. Entrypoint
+# We point directly to the prediction script inside the container
+ENTRYPOINT ["python3", "/opt/synthseg/scripts/commands/SynthSeg_predict.py"]
+
+# Default args (prints help if run without args)
+CMD ["--help"]

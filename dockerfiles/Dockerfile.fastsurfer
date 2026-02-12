@@ -1,0 +1,52 @@
+FROM python:3.11-slim
+
+# 2. Install System Dependencies
+# 'git' and 'curl' are standard requirements
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    torch==2.7.1+cpu \
+    torchvision==0.22.1+cpu \
+    torchio>=0.18.83
+
+WORKDIR /opt/
+RUN pip install --no-cache-dir \
+    h5py>=3.7 \
+    lapy>=1.5.0 \
+    matplotlib \
+    meshpy>=2025.1.1 \
+    monai>=1.4.0  \
+    nibabel>=5.1.0 \
+    numpy>=1.25 \
+    packaging \
+    pandas>=1.5.3 \
+    pyyaml>=6.0 \
+    requests>=2.31.0  \
+    scikit-image>=0.19.3 \
+    scikit-learn>=1.2.2 \
+    scipy>=1.10.1,!=1.13.0 \
+    simpleitk>=2.2.1 \
+    tensorboard>=2.12.1 \
+    tqdm>=4.65 \
+    yacs>=0.1.8 \
+    pyrr>=0.10.3
+
+ENV PYTHONPATH=/opt/FastSurfer:$PYTHONPATH
+RUN git clone https://github.com/Deep-MI/FastSurfer.git && \
+    cd FastSurfer && pip install --no-deps . && \
+    python3 FastSurferCNN/download_checkpoints.py --all && \
+    # compile all FastSurfer scripts into bytecode
+    python3 -m compileall *
+
+RUN git config --global --add safe.directory /opt/FastSurfer
+
+# 8. Entrypoint
+# We point directly to the prediction script inside the container
+ENV FASTSURFER_HOME="/opt/FastSurfer/"
+ENTRYPOINT ["/opt/FastSurfer/run_fastsurfer.sh"]
+
+# Default args (prints help if run without args)
+CMD ["--help"]
