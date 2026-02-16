@@ -21,7 +21,7 @@ RUN mkdir -p models && \
 
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-        pip install --no-cache-dir "numpy<1.24" tensorflow-aarch64==2.10.1 \
+        pip install --no-cache-dir "numpy<1.24" tensorflow-aarch64==2.10.1; \
     else \
         pip install --no-cache-dir "numpy<1.24" tensorflow-cpu==2.10.0; \
     fi
