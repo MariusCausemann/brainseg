@@ -6,11 +6,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir \
-    --extra-index-url https://download.pytorch.org/whl/cpu \
-    torch==2.7.1+cpu \
-    torchvision==0.22.1+cpu \
-    torchio>=0.18.83
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        pip install --no-cache-dir \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        torch==2.7.1 \
+        torchvision==0.22.1 \
+        torchio>=0.18.83; \; \
+    else \
+        pip install --no-cache-dir \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        torch==2.7.1+cpu \
+        torchvision==0.22.1+cpu \
+        torchio>=0.18.83; \
+    fi
+
 
 WORKDIR /opt/
 RUN pip install --no-cache-dir \
