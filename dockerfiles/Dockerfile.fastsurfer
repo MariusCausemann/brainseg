@@ -12,7 +12,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
         --extra-index-url https://download.pytorch.org/whl/cpu \
         torch==2.7.1 \
         torchvision==0.22.1 \
-        torchio>=0.18.83; \; \
+        torchio>=0.18.83; \
     else \
         pip install --no-cache-dir \
         --extra-index-url https://download.pytorch.org/whl/cpu \
