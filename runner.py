@@ -187,7 +187,7 @@ def main():
         sif_path = args.container
     elif Path(image_name).exists():
         sif_path = Path(image_name).resolve()
-    elif (Path("containers") / image_name).exists():
+    elif (Path(".containers") / image_name).exists():
         sif_path = (Path("containers") / image_name).resolve()
     else:
         sys.exit("Error: Could not find container '{image_name}'." 
