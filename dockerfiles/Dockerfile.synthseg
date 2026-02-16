@@ -1,5 +1,4 @@
-# 1. Base Image: Python 3.8 (Required by SynthSeg/TensorFlow 2.2)
-FROM python:3.8-slim
+FROM python:3.10-slim
 
 # 2. Install System Dependencies
 # 'git' and 'curl' are standard requirements
@@ -9,26 +8,28 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 5. Setup SynthSeg Scripts & Data Directory
-# The pip install doesn't always expose the CLI scripts nicely,
-# so we download the source code (just like your Snakefile does) to get them.
 WORKDIR /opt/synthseg
 
 # Download and extract the code repository
 RUN curl -L "https://github.com/BBillot/SynthSeg/archive/refs/heads/master.tar.gz" | \
     tar -xzf - --strip-components=1 -C /opt/synthseg
 
-# 6. Bake in the Weights
-# We download the exact 2.0 weights referenced in your Snakefile.
+# Bake in the Weights
 RUN mkdir -p models && \
     curl -L "https://github.com/MariusCausemann/brainseg/releases/download/synthseg2.0/synthseg_2.0.h5" \
     -o models/synthseg_2.0.h5
 
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        pip install --no-cache-dir "numpy<1.24" tensorflow-aarch64==2.10.1 \
+    else \
+        pip install --no-cache-dir "numpy<1.24" tensorflow-cpu==2.10.0; \
+    fi
+
 # 3. Install TensorFlow (CPU-Only) & Dependencies
 RUN pip install --no-cache-dir \
     protobuf \
-    tensorflow-cpu==2.10.0 \
     keras==2.10.0 \
-    "numpy<1.24" \
     scipy \
     h5py \
     nibabel \
