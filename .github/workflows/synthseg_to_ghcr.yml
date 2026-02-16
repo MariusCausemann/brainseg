@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag for the image (e.g., v1.0)'
+        description: 'synthseg'
         required: true
-        default: 'latest'
+        default: 'synthseg'
 
 env:
   REGISTRY: ghcr.io
