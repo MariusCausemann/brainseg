@@ -45,6 +45,13 @@ for root, _, files in os.walk('.'):
 
 EOF
 
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        pip install --no-cache-dir tensorflow; \
+    else \
+        pip install --no-cache-dir tensorflow-cpu; \
+    fi
+
 # 4. Install All GOUHFI Dependencies
 # This prevents GOUHFI from trying to pull them during install
 RUN pip install --no-cache-dir --upgrade-strategy only-if-needed \
@@ -70,8 +77,7 @@ RUN pip install --no-cache-dir --upgrade-strategy only-if-needed \
     tifffile \
     requests \
     yacs \
-    antspyx>=0.6.1 \
-    tensorflow-cpu
+    antspyx>=0.6.1
 
 
 # 5. Clone and Install GOUHFI
