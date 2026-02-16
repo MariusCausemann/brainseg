@@ -24,14 +24,13 @@ RUN mkdir -p models && \
     -o models/synthseg_2.0.h5
 
 # 3. Install TensorFlow (CPU-Only) & Dependencies
-# We explicitly target 'tensorflow-cpu' to avoid downloading NVIDIA CUDA libs.
-# SynthSeg requires strict versions: TF 2.2 and Keras 2.3.1
 RUN pip install --no-cache-dir \
-    protobuf==3.20.3 \
-    tensorflow-cpu==2.2.0 \
-    keras==2.3.1 \
-    numpy==1.23.5 \
-    h5py==2.10.0 \
+    protobuf \
+    tensorflow-cpu==2.10.0 \
+    keras==2.10.0 \
+    "numpy<1.24" \
+    scipy \
+    h5py \
     nibabel \
     matplotlib
 
