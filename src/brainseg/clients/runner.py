@@ -2,6 +2,10 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from brainseg.remap import remap_file
+import brainseg.data
+from importlib import resources
+import shutil
 
 # Default container names (users can override with --container)
 DEFAULT_IMAGES = {
@@ -11,9 +15,27 @@ DEFAULT_IMAGES = {
     "simnibs": "brainseg_simnibs.sif"
 }
 
+CONTAINER_URIS = {
+    "synthseg": "docker://ghcr.io/mariuscausemann/brainseg:synthseg",
+    "gouhfi": "docker://ghcr.io/mariuscausemann/brainseg:gouhfi",
+    "fastsurfer": "docker://ghcr.io/mariuscausemann/brainseg:fastsurfer",
+    "simnibs": "docker://ghcr.io/mariuscausemann/brainseg:simnibs"
+}
+
+def get_container_runtime():
+    """Returns the command for the available runtime or raises an error."""
+    for tool in ["apptainer", "singularity"]:
+        if shutil.which(tool):
+            return tool
+    raise RuntimeError(
+        "No container runtime found! Please install Apptainer / Singularity"
+        "If using Conda, try: 'conda install -c conda-forge apptainer'"
+    )
+
 def run_command(cmd, description):
     """Helper to run a subprocess command with error handling."""
     print(f"--- {description} ---")
+    #print(f"running command: {str(cmd)}")
     try:
         subprocess.run(cmd, check=True)
         print("Done.\n")
@@ -47,7 +69,7 @@ def run_synthseg(input_path, output_path, sif_path):
 
     # 3. Build Full Apptainer Command
     cmd = [
-        "singularity", "exec",
+        get_container_runtime(), "exec",
         "--cleanenv",
         *bind_args,
         str(sif_path),
@@ -94,7 +116,7 @@ def run_gouhfi(input_path, output_path, sif_path):
 
     # 3. Build Full Apptainer Command
     cmd = [
-        "singularity", "exec",
+        get_container_runtime(), "exec",
         "--cleanenv",
         *bind_args,
         str(sif_path),
@@ -102,6 +124,10 @@ def run_gouhfi(input_path, output_path, sif_path):
     ]
 
     run_command(cmd, f"Running GOUHFI on {input_path.name}")
+    old_label_txt = resources.files(brainseg.data).joinpath("gouhfi-label-list-lut.txt")
+    new_label_txt = resources.files(brainseg.data).joinpath("freesurfer-label-list-lut.txt")
+    remap_file(output_path, old_label_txt, new_label_txt, output_path)
+
 
 def run_fastsurfer(input_path, output_path, sif_path):
     """
@@ -126,7 +152,7 @@ def run_fastsurfer(input_path, output_path, sif_path):
 
     # 3. Build Full Apptainer Command
     cmd = [
-        "singularity", "exec",
+        get_container_runtime(), "exec",
         "--cleanenv",
         *bind_args,
         str(sif_path),
@@ -134,6 +160,9 @@ def run_fastsurfer(input_path, output_path, sif_path):
     ]
 
     run_command(cmd, f"Running FastSurfer on {input_path.name}")
+    old_label_txt = resources.files(brainseg.data).joinpath("freesurfer-label-list-full-lut.txt")
+    new_label_txt = resources.files(brainseg.data).joinpath("freesurfer-label-list-reduced-lut.txt")
+    remap_file(output_path, old_label_txt, new_label_txt, output_path)
 
 def run_simnibs(input_path, output_path, sif_path):
     """
@@ -159,7 +188,7 @@ def run_simnibs(input_path, output_path, sif_path):
 
     # 3. Build Full Apptainer Command
     cmd = [
-        "singularity", "exec",
+        get_container_runtime(), "exec",
         "--cleanenv",
         *bind_args,
         str(sif_path),
@@ -168,7 +197,42 @@ def run_simnibs(input_path, output_path, sif_path):
 
     run_command(cmd, f"Running simnibs on {input_path.name}")
 
-
+def find_container(tool):
+    """Finds the container locally, or builds it in ~/.brainseg_containers."""
+    image_name = DEFAULT_IMAGES[tool]
+    
+    # 1. Check current directory and .containers
+    if Path(image_name).exists():
+        return Path(image_name).resolve()
+    elif (Path(".containers") / image_name).exists():
+        return (Path(".containers") / image_name).resolve()
+    
+    # 2. Check the global ~/.brainseg_containers directory
+    global_container_dir = Path.home() / ".brainseg_containers"
+    sif_path = global_container_dir / image_name
+    
+    if sif_path.exists():
+        return sif_path.resolve()
+        
+    # 3. If missing entirely, attempt to build it from the Docker registry
+    print(f"Container '{image_name}' not found locally.")
+    uri = CONTAINER_URIS.get(tool)
+    if not uri:
+        sys.exit(f"Error: No download URI defined for tool '{tool}'.")
+        
+    print(f"Building from {uri} to {sif_path}...")
+    global_container_dir.mkdir(parents=True, exist_ok=True)
+    
+    runtime = get_container_runtime()
+    
+    # Execute the apptainer/singularity build command
+    build_cmd = [runtime, "build", str(sif_path), uri]
+    run_command(build_cmd, f"Building SIF container for {tool}")
+    
+    if sif_path.exists():
+        return sif_path.resolve()
+    else:
+        sys.exit(f"Error: Failed to build container to {sif_path}.")
 
 def main():
     parser = argparse.ArgumentParser(description="BrainSeg: Brain Segmentation Wrapper")
@@ -179,19 +243,13 @@ def main():
                          help="Input NIfTI file")
     parser.add_argument("-o", "--output", required=True, type=Path, 
                          help="Output NIfTI filename (e.g. out.nii.gz)")
-    parser.add_argument("--container", type=Path, help="Path to brainseg_synthseg.sif")
+    parser.add_argument("--container", type=Path, help="Path to the container file")
     args = parser.parse_args()
 
-    image_name = DEFAULT_IMAGES[args.tool]
     if args.container:
         sif_path = args.container
-    elif Path(image_name).exists():
-        sif_path = Path(image_name).resolve()
-    elif (Path(".containers") / image_name).exists():
-        sif_path = (Path("containers") / image_name).resolve()
     else:
-        sys.exit("Error: Could not find container '{image_name}'." 
-                 f"Please use --container to specify its location.")
+        sif_path = find_container(args.tool)
 
     # Dispatch
     if args.tool == "synthseg":
