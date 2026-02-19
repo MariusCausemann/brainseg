@@ -17,14 +17,14 @@ This pipeline currently supports the following deep-learning-based segmentation 
    * **CSF Availability:** Yes (segments ventricles and subarachnoid space CSF).
 
 2. [**SynthSeg**](https://github.com/BBillot/SynthSeg)
-   Developed by the FreeSurfer team, this tool is famous for working "out of the box" on almost any kind of MRI scan (different contrasts, resolutions, or messy clinical data) without needing retraining.
+   Developed by the FreeSurfer team, this tool is famous for working "out of the box" on almost any kind of MRI scan (different contrasts, resolutions, or messy clinical data).
 
    * **Resolution:** Fixed 1mm isotropic (always resamples input to 1mm).
 
    * **CSF Availability:** Yes.
 
 3. [**FastSurfer**](https://github.com/Deep-MI/FastSurfer)
-   A rapid deep-learning-based segmentation tool that is optimized for speed, finishing in minutes rather than hours.
+   A rapid deep-learning-based segmentation tool.
 
    * **Resolution:** Native (but experimental below 0.7mm).
 
