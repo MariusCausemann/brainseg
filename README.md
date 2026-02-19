@@ -4,7 +4,7 @@ This repository provides a streamlined Python wrapper and CLI tool to automatica
 
 Brain segmentation tools often have conflicting dependencies, complex installation steps, or require specific versions of system libraries. This package solves that problem by containerizing the tools and handling the execution, file binding, and label standardization for you.
 
-![h:8cm](images/comparison_grid.png)
+![h:8cm](https://github.com/MariusCausemann/brainseg/raw/main/images/comparison_grid.png)
 ## The Tools
 
 This pipeline currently supports the following deep-learning-based segmentation tools. We may add more in the future.
