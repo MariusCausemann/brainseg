@@ -11,6 +11,7 @@ description = "wrapper for brain segmentation tools"
 authors = [{ name = "Marius Causemann", email = "mariusca@simula.no" }]
 license = { file = "LICENSE" }
 readme = "README.md"
+urls = { homepage = "https://github.com/MariusCausemann/brainseg" }
 
 
 [project.scripts]
