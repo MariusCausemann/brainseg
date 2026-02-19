@@ -1,8 +1,8 @@
-# BrainSeg Pipeline
+# BrainSeg-container
 
-This repository contains a streamlined **Snakemake pipeline** to automatically run and compare state-of-the-art brain segmentation tools on your MRI data.
+This repository provides a streamlined Python wrapper and CLI tool to automatically download, run, and standardize outputs from state-of-the-art brain segmentation tools using Apptainer / Singularity containers.
 
-Brain segmentation tools often have conflicting dependencies, complex installation steps, or require specific versions of system libraries. This pipeline solves that problem by handling the environment setup, execution, and result standardization for you.
+Brain segmentation tools often have conflicting dependencies, complex installation steps, or require specific versions of system libraries. This package solves that problem by containerizing the tools and handling the execution, file binding, and label standardization for you.
 
 ![h:8cm](images/comparison_grid.png)
 ## The Tools
@@ -42,63 +42,57 @@ This pipeline currently supports the following deep-learning-based segmentation 
 
 The pipeline can automatically generate a comparison grid so you can quickly inspect the differences between the tools.
 
-*Note: The pipeline includes a script (`scripts/compare_segs.py`) that generates this visualization for you.*
-
 ## Getting Started
 
 ### Prerequisites
 
-You need a package manager to handle the software environments. We recommend **Mamba** (faster) or **Conda**. You also need **Snakemake**.
+You must have Apptainer (or Singularity) installed on your system to run the containers.
 
-```
-# Install Snakemake using Mamba (recommended)
-mamba create -c conda-forge -c bioconda -n snakemake snakemake
-mamba activate snakemake
+* Ubuntu/Debian: `sudo apt install apptainer`
+* Conda/Mamba: `conda install -c conda-forge apptainer `
 
-```
 
 ### Installation
 
-Clone this repository:
+You can install the package directly via pip:
 
+```bash
+pip install brainseg-containers
 ```
-git clone [https://github.com/yourusername/brainseg.git](https://github.com/yourusername/brainseg.git)
-cd brainseg
 
+*(Optional) If you want to use the plotting and comparison features, install with the `plot` extras:*
+```bash
+pip install brainseg-containers[plot]
 ```
+
+---
 
 ## Usage
 
-1. **Prepare your data:**
-   Place your T1-weighted MRI files in the `inputs/` folder.
+The package provides a simple command-line interface. The first time you run a specific tool, the wrapper will automatically download the corresponding container from the GitHub Container Registry and store it in `~/.brainseg_containers/`.
 
-   * *Naming convention:* Files must end in `_T1w.nii.gz`.
+### Basic Command
 
-   * *Example:* `inputs/sub-01_T1w.nii.gz`
-
-2. **Run the pipeline:**
-   Execute Snakemake. This command tells it to use the conda environments defined in the repo and run on 1 core (increase cores if you have them).
-
-   ```
-   snakemake --use-conda -c 1
-   
-   ```
-
-   *First run note:* The first time you run this, Snakemake will download all necessary model weights and build the separate environments for each tool. This might take a while!
-
-## Output Structure
-
-After the pipeline finishes, your `results/` folder will look like this:
-
+```bash
+brainseg-containers -t <tool_name> -i <input_file.nii.gz> -o <output_file.nii.gz>
 ```
-results/
-└── sub-01/
-    ├── fastsurfer_seg.nii.gz  # FastSurfer Segmentation
-    ├── gouhfi_seg.nii.gz      # GOUHFI Segmentation
-    ├── simnibs_seg.nii.gz     # SimNIBS/Charm Segmentation
-    └── synthseg_seg.nii.gz    # SynthSeg Segmentation
 
+**Available Tools:** `synthseg`, `gouhfi`, `fastsurfer`, `simnibs`
+
+### Examples
+
+**Run GOUHFI on a single subject:**
+```bash
+brainseg-containers -t gouhfi -i inputs/sub-01_T1w.nii.gz -o results/sub-01_gouhfi.nii.gz
 ```
+
+**Run SynthSeg on the same subject:**
+```bash
+brainseg-containers -t synthseg -i inputs/sub-01_T1w.nii.gz -o results/sub-01_synthseg.nii.gz
+```
+
+*Note: You can optionally provide a custom path to a pre-downloaded `.sif` image using the `--container` flag.*
+
 
 ### Note on Labels
 
