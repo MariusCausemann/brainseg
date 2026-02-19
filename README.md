@@ -74,7 +74,7 @@ The package provides a simple command-line interface. The first time you run a s
 ### Basic Command
 
 ```bash
-brainseg-containers -t <tool_name> -i <input_file.nii.gz> -o <output_file.nii.gz>
+brainseg -t <tool_name> -i <input_file.nii.gz> -o <output_file.nii.gz>
 ```
 
 **Available Tools:** `synthseg`, `gouhfi`, `fastsurfer`, `simnibs`
@@ -83,12 +83,12 @@ brainseg-containers -t <tool_name> -i <input_file.nii.gz> -o <output_file.nii.gz
 
 **Run GOUHFI on a single subject:**
 ```bash
-brainseg-containers -t gouhfi -i inputs/sub-01_T1w.nii.gz -o results/sub-01_gouhfi.nii.gz
+brainseg -t gouhfi -i inputs/sub-01_T1w.nii.gz -o results/sub-01_gouhfi.nii.gz
 ```
 
 **Run SynthSeg on the same subject:**
 ```bash
-brainseg-containers -t synthseg -i inputs/sub-01_T1w.nii.gz -o results/sub-01_synthseg.nii.gz
+brainseg -t synthseg -i inputs/sub-01_T1w.nii.gz -o results/sub-01_synthseg.nii.gz
 ```
 
 *Note: You can optionally provide a custom path to a pre-downloaded `.sif` image using the `--container` flag.*
