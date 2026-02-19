@@ -5,3 +5,5 @@ results
 trained_model
 inputs
 *.sif
+*.egg-info
+__pycache__
