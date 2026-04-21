@@ -115,6 +115,7 @@ For computational modeling tasks that require highly accurate SAS labels, this p
 **Example Command:**
 ```bash
 brainseg -t hybrid_gouhfi_T2 -i inputs/sub-01_T1w.nii.gz --t2 inputs/sub-01_T2w.nii.gz -o results/sub-01_hybrid_seg.nii.gz
+```
 ### Note on Labels
 
 Different tools use different numbers to represent brain regions. To make comparison easier, this pipeline automatically **remaps** the output labels of FastSurfer and GOUHFI to match the standard FreeSurfer lookup table.
