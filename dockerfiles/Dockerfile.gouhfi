@@ -1,9 +1,10 @@
+# syntax=docker/dockerfile:1
 FROM python:3.10-slim
 
 # Install System Basics
 RUN apt-get update && apt-get install -y \
     git \
-    curl \
+    aria2 \
     unzip \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -13,9 +14,8 @@ RUN apt-get update && apt-get install -y \
 # ANTsPyNet looks for weights in ~/.keras/ANTsXNet/ by default.
 # create a global directory for this and point HOME to it.
 WORKDIR /opt/antspynet_cache/.keras/ANTsXNet
-RUN curl -L "https://ndownloader.figshare.com/files/34821874" -o brainExtractionRobustT1.h5  && \
-    curl -L "https://ndownloader.figshare.com/files/22597175" -o S_template3_resampled.nii
-
+RUN aria2c -x 16 -s 16 -o brainExtractionRobustT1.h5 "https://ndownloader.figshare.com/files/34821874" && \
+    aria2c -x 16 -s 16 -o S_template3_resampled.nii "https://ndownloader.figshare.com/files/22597175"
 
 # Install PyTorch (Native CPU)
 RUN pip install --no-cache-dir \
@@ -24,9 +24,12 @@ RUN pip install --no-cache-dir \
 ENV GOUHFI_HOME="/opt/gouhfi"
 WORKDIR $GOUHFI_HOME/trained_model
 
-RUN curl -L "https://zenodo.org/records/17920473/files/gouhfi_2p0_brain_seg.zip" -o weights.zip && \
-    unzip -q weights.zip && \
-    rm weights.zip && \
+RUN aria2c -x 16 -s 16 -o weights_seg.zip "https://zenodo.org/records/17920473/files/gouhfi_2p0_brain_seg.zip" && \
+    unzip -q weights_seg.zip && \
+    rm weights_seg.zip && \
+aria2c -x 16 -s 16 -o weights_parc.zip "https://zenodo.org/records/17920473/files/gouhfi_2p0_parc.zip" && \
+    unzip -q weights_parc.zip && \
+    rm weights_parc.zip && \
     python3 - <<'EOF'
 import torch
 import os
@@ -41,7 +44,6 @@ for root, _, files in os.walk('.'):
             slim_ckpt = {k: v for k, v in ckpt.items() if k in KEEP_KEYS}
             torch.save(slim_ckpt, path)
             print(f"Successfully stripped: {path}")
-
 EOF
 
 ARG TARGETARCH
@@ -80,7 +82,10 @@ RUN pip install --no-cache-dir --upgrade-strategy only-if-needed \
 
 # Clone and Install GOUHFI
 WORKDIR $GOUHFI_HOME
-RUN pip install --no-deps --no-cache-dir antspynet git+https://github.com/mafortin/GOUHFI
+RUN git clone https://github.com/mafortin/GOUHFI.git /tmp/GOUHFI_repo && \
+    cp -r /tmp/GOUHFI_repo/* $GOUHFI_HOME/ && \
+    rm -rf /tmp/GOUHFI_repo && \
+    pip install --no-deps --no-cache-dir antspynet .
 
 # We set HOME to /opt/antspynet_cache so ANTsPyNet finds the .keras folder automatically.
 ENV HOME="/opt/antspynet_cache"
