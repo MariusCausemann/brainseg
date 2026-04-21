@@ -17,19 +17,22 @@ urls = { homepage = "https://github.com/MariusCausemann/brainseg" }
 [project.scripts]
 brainseg = "brainseg.clients.runner:main"
 brainseg_relabel = "brainseg.clients.remap_labels:main"
-
+brainseg_register = "brainseg.clients.coregister:main"
+brainseg_resample = "brainseg.clients.resample:main"
+brainseg_csfmask = "brainseg.clients.T2_based_csf_mask:main"
+brainseg_csfcorrect = "brainseg.clients.merge_csf_and_anatomy:main"
 
 [project.optional-dependencies]
 test = []
 dev = ["pdbpp", "ipython", "mypy", "ruff"]
 plot = ["matplotlib","nilearn", "numpy", "pandas"]
+all = ["nbmorph", "antspyx"]
 docs = [
     "jupyter-book<2.0.0",
     "jupytext",
     "ipykernel<7.0.0",     # Note: Remove once https://github.com/ipython/ipykernel/issues/1450 is in a release
     "sphinx-codeautolink",
 ]
-all = ["brainseg-containers[test,dev,docs,plot]"]
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib"]
