@@ -6,20 +6,27 @@ from brainseg.remap import remap_file
 import brainseg.data
 from importlib import resources
 import shutil
+import numpy as np
+import nibabel as nib
+from brainseg.clients import coregister_images, merge_csf_and_anatomy, extract_csf_mask
+import tempfile
+from pathlib import Path
 
 # Default container names (users can override with --container)
 DEFAULT_IMAGES = {
     "synthseg": "brainseg_synthseg.sif",
     "gouhfi": "brainseg_gouhfi.sif",
     "fastsurfer": "brainseg_fastsurfer.sif",
-    "simnibs": "brainseg_simnibs.sif"
+    "simnibs": "brainseg_simnibs.sif",
+    "synthstrip": "freesurfer_synthstrip.sif"
 }
 
 CONTAINER_URIS = {
     "synthseg": "docker://ghcr.io/mariuscausemann/brainseg:synthseg",
     "gouhfi": "docker://ghcr.io/mariuscausemann/brainseg:gouhfi",
     "fastsurfer": "docker://ghcr.io/mariuscausemann/brainseg:fastsurfer",
-    "simnibs": "docker://ghcr.io/mariuscausemann/brainseg:simnibs"
+    "simnibs": "docker://ghcr.io/mariuscausemann/brainseg:simnibs",
+    "synthstrip": "docker://freesurfer/synthstrip:latest"
 }
 
 def get_container_runtime():
@@ -45,6 +52,19 @@ def run_command(cmd, description):
     except FileNotFoundError:
         print(f"Error: Could not find the executable '{cmd[0]}'. Is Apptainer installed?")
         sys.exit(1)
+
+def is_skull_stripped(image_path, zero_threshold=0.4):
+    """
+    Heuristic to determine if an MRI is already skull-stripped.
+    If more than `zero_threshold` (e.g., 40%) of the voxels are exactly 0.0 (or nan),
+    it assumes the background has been artificially masked out.
+    """
+    img = nib.load(image_path)
+    data = img.get_fdata()
+    zero_ratio = (np.sum(data <= 0) + np.isnan(data).sum())/ data.size
+    print(f"zero_ratio: {zero_ratio}")
+    return zero_ratio > zero_threshold
+
 
 def run_synthseg(input_path, output_path, sif_path):
     """
@@ -91,15 +111,24 @@ def run_gouhfi(input_path, output_path, sif_path):
         "--bind", f"{output_path.parent}:/data_out"
     ]
 
+    stripped = is_skull_stripped(input_path)
+    
+    if stripped:
+        print(f"Auto-detected skull-stripped input for {input_path.name}. Running GOUHFI conforming ...")
+        # Skip run_preprocessing
+        prep_cmd = "run_conforming -i /tmp/in -o /tmp/masked && "
+    else:
+        print(f"Auto-detected raw input for {input_path.name}. Running GOUHFI preprocessing...")
+        prep_cmd = "run_preprocessing -i /tmp/in -o /tmp/masked && "
+
     # 2. Construct the internal command
     internal_cmd = (
         # A. Setup Staging
         "mkdir -p /tmp/in /tmp/masked /tmp/out && "
         f"cp /data_in/{input_path.name} /tmp/in/subject_0000.nii.gz && "
         
-        # B. Run Preprocessing (Skull Strip)
-        "echo 'Running Preprocessing...' && "
-        "run_preprocessing -i /tmp/in -o /tmp/masked && "
+        # B. Run Preprocessing (Conditionally)
+         + prep_cmd +
         
         # C. Run GOUHFI (Segmentation)
         "echo 'Running GOUHFI...' && "
@@ -197,6 +226,29 @@ def run_simnibs(input_path, output_path, sif_path):
 
     run_command(cmd, f"Running simnibs on {input_path.name}")
 
+def run_synthstrip(input_path, output_path, sif_path, additional_cmds=None):
+    """
+    Runs SynthStrip for robust brain extraction.
+    """
+    bind_args = [
+        "--bind", f"{input_path.parent}:/data_in",
+        "--bind", f"{output_path.parent}:/data_out"
+    ]
+
+    # The freesurfer/synthstrip container's entrypoint takes the arguments directly
+    cmd = [
+        get_container_runtime(), "run",
+        "--cleanenv",
+        *bind_args,
+        str(sif_path),
+        "-i", f"/data_in/{input_path.name}",
+        "-o", f"/data_out/{output_path.name}",
+        "-m", f"/data_out/{output_path.name.replace('.nii.gz', '_mask.nii.gz')}",
+    ]
+    if not additional_cmds is None:
+        cmd.append(additional_cmds)
+    run_command(cmd, f"Running SynthStrip on {input_path.name}")
+
 def find_container(tool):
     """Finds the container locally, or builds it in ~/.brainseg_containers."""
     image_name = DEFAULT_IMAGES[tool]
@@ -234,6 +286,75 @@ def find_container(tool):
     else:
         sys.exit(f"Error: Failed to build container to {sif_path}.")
 
+def apply_brain_mask(image_path, mask_path, output_path):
+    print(f"Applying brain mask {mask_path.name} to {image_path.name}...")
+    img = nib.load(image_path)
+    mask_img = nib.load(mask_path)
+    
+    # Ensure the mask is boolean
+    mask_data = mask_img.get_fdata() > 0
+    
+    # Multiply the image data by the mask (background becomes 0)
+    masked_data = img.get_fdata() * mask_data
+    
+    # Save the skull-stripped image
+    nib.save(nib.Nifti1Image(masked_data, img.affine, img.header), output_path)
+
+def run_hybrid_gouhfi_T2(t1_path, t2_path, output_path,
+                         gouhfi_sif, synthstrip_sif):
+    """
+    Runs the hybrid T1+T2 pipeline for high-fidelity CFD meshing:
+    1. Coregister T2 -> T1
+    2. SynthStrip on T2
+    3. apply SynthStrip mask from T2 to the T1
+    3. Extract CSF mask from stripped T2
+    4. GOUHFI on T1
+    5. Merge GOUHFI anatomy with T2 CSF mask
+    """
+    print(f"\nStarting Hybrid T1+T2 GOUHFI Pipeline...")
+    print(f"Target Output: {output_path}")
+
+    # Use a temporary directory 
+    with tempfile.TemporaryDirectory() as tmpdir:
+
+        tmp_dir = Path(tmpdir)
+        
+        coreg_t2_path = tmp_dir / "T2_coreg_to_T1.nii.gz"
+        stripped_t2_path = tmp_dir / "T2_stripped.nii.gz"
+        csf_mask_path = tmp_dir / "T2_csf_mask.nii.gz"
+        stripped_t1_path = tmp_dir / "T1_stripped.nii.gz"
+        gouhfi_seg_path = tmp_dir / "gouhfi_anatomy.nii.gz"
+        
+        # Step 1: Coregister T2 to T1
+        print("\n--- STEP 1: Coregistering T2 to T1 ---")
+        coregister_images(t1_path, t2_path, coreg_t2_path)
+        
+        # Step 2: Run SynthStrip on the coregistered T2
+        print("\n--- STEP 2: Running SynthStrip on Coregistered T2 ---")
+        run_synthstrip(coreg_t2_path, stripped_t2_path, synthstrip_sif,
+                       additional_cmds="-b 2")
+
+        # Step 3: Apply the SynthStrip mask to the T1
+        print("\n--- STEP 3: Skull-stripping T1 with SynthStrip Mask ---")
+        #apply_brain_mask(t1_path, synthstrip_mask_path, stripped_t1_path)
+        run_synthstrip(t1_path, stripped_t1_path , synthstrip_sif,
+                       additional_cmds="--no-csf")
+
+        # Step 4: Extract CSF mask using Li Thresholding
+        print("\n--- STEP 4: Extracting CSF Mask ---")
+        extract_csf_mask(stripped_t2_path, csf_mask_path)
+        
+        # Step 5: Run GOUHFI on the stripped T1
+        print("\n--- STEP 5: Running GOUHFI on stripped T1 ---")
+        run_gouhfi(stripped_t1_path, gouhfi_seg_path, gouhfi_sif)
+        
+        # Step 6: Merge CSF mask with GOUHFI seg
+        print("\n--- STEP 6: Merging T2 CSF with T1 Anatomy ---")
+        merge_csf_and_anatomy(gouhfi_seg_path, csf_mask_path, output_path)
+        
+        print(f"\nHybrid Pipeline Complete! Successfully generated {output_path.name}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="BrainSeg: Brain Segmentation Wrapper")
     parser.add_argument("-t", "--tool", required=True, help="Tool to run")
@@ -243,12 +364,13 @@ def main():
                          help="Input NIfTI file")
     parser.add_argument("-o", "--output", required=True, type=Path, 
                          help="Output NIfTI filename (e.g. out.nii.gz)")
+    parser.add_argument("--t2", type=Path, help="T2w image (Required for hybrid_gouhfi_T2)")
     parser.add_argument("--container", type=Path, help="Path to the container file")
     args = parser.parse_args()
 
     if args.container:
         sif_path = args.container
-    else:
+    elif "hybrid" not in args.tool:
         sif_path = find_container(args.tool)
 
     # Dispatch
@@ -260,6 +382,23 @@ def main():
         run_fastsurfer(args.input.resolve(), args.output.resolve(), sif_path)
     elif args.tool == "simnibs":
         run_simnibs(args.input.resolve(), args.output.resolve(), sif_path)
+    elif args.tool == "synthstrip":
+        run_synthstrip(args.input.resolve(), args.output.resolve(), sif_path)
+    if args.tool == "hybrid_gouhfi_T2":
+            if not args.t2:
+                parser.error("--t2 is required when using the hybrid_gouhfi_T2 tool.")
+                
+            # We need both containers for the hybrid pipeline
+            gouhfi_sif = find_container("gouhfi")
+            synthstrip_sif = find_container("synthstrip")
+            
+            run_hybrid_gouhfi_T2(
+                args.input.resolve(), 
+                args.t2.resolve(), 
+                args.output.resolve(), 
+                gouhfi_sif, 
+                synthstrip_sif
+            )
 
 if __name__ == "__main__":
     main()
