@@ -7,3 +7,4 @@ inputs
 *.sif
 *.egg-info
 __pycache__
+build
