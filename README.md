@@ -38,6 +38,11 @@ This pipeline currently supports the following deep-learning-based segmentation 
    * **CSF Availability:** Yes.
    * **Segmented regions:** Charm provides the following segmentation labels: White-Matter, Gray-Matter, CSF, Bone, Scalp, Eye_bals, Compact_bone, Spongy_bone, Blood, Muscle, Cartilage, Fat, Electrode, Saline_or_gel
 
+5. [**SynthStrip**](https://surfer.nmr.mgh.harvard.edu/docs/synthstrip/)
+   A robust, contrast-agnostic brain extraction tool from the FreeSurfer suite. While not a full segmentation tool, it is  optimized for creating accurate brain masks across diverse MRI contrasts and resolutions. 
+   * **Resolution:** Native (preserves input resolution).
+   * **Output:** Skull-stripped image and binary brain mask.
+
 ## Comparison Output
 
 The pipeline can automatically generate a comparison grid so you can quickly inspect the differences between the tools.
@@ -77,7 +82,7 @@ The package provides a simple command-line interface. The first time you run a s
 brainseg -t <tool_name> -i <input_file.nii.gz> -o <output_file.nii.gz>
 ```
 
-**Available Tools:** `synthseg`, `gouhfi`, `fastsurfer`, `simnibs`
+**Available Tools:** `synthseg`, `gouhfi`, `fastsurfer`, `simnibs`, `synthstrip`, `hybrid_gouhfi_T2`
 
 ### Examples
 
@@ -94,6 +99,22 @@ brainseg -t synthseg -i inputs/sub-01_T1w.nii.gz -o results/sub-01_synthseg.nii.
 *Note: You can optionally provide a custom path to a pre-downloaded `.sif` image using the `--container` flag.*
 
 
+### Hybrid GOUHFI-CSF Segmentation (`hybrid_gouhfi_T2`)
+
+Standard deep-learning segmentation tools (like GOUHFI or SynthSeg) often struggle to produce accurate and continuous segmentations of the Subarachnoid Space (SAS). For example, GOUHFI's CSF boundary is highly dependent on the initial skull-stripping tool used.
+
+For computational modeling tasks that require highly accurate SAS labels, this package includes a fully automated **T1/T2 Hybrid Pipeline**. This method leverages the structural clarity of a T1w image for solid brain tissue alongside the superior fluid contrast of a T2w image.
+
+**Under the hood, the pipeline automatically:**
+1. **Co-registers** your T2 image to your T1 image using ANTsPy.
+2. **Brain Extraction:** Runs SynthStrip on the T2 to generate a highly accurate brain mask.
+3. **CSF Thresholding:** Extracts a continuous physical fluid mask from the stripped T2 using Li thresholding.
+4. **Anatomical Segmentation:** Runs GOUHFI on the T1 image (after masking it with SynthStrip) to create an accurate tissue segmentation.
+5. **Topological Merging:** Merges the T1 anatomy with the T2 fluid mask.
+
+**Example Command:**
+```bash
+brainseg -t hybrid_gouhfi_T2 -i inputs/sub-01_T1w.nii.gz --t2 inputs/sub-01_T2w.nii.gz -o results/sub-01_hybrid_seg.nii.gz
 ### Note on Labels
 
 Different tools use different numbers to represent brain regions. To make comparison easier, this pipeline automatically **remaps** the output labels of FastSurfer and GOUHFI to match the standard FreeSurfer lookup table.
