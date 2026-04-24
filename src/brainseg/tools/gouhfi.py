@@ -116,7 +116,8 @@ def run_gouhfi(input_path, output_path, sif_path, do_parcellation=False, folds="
 
 
 def run_hybrid_gouhfi_T2(t1_path, t2_path, output_path,
-                         gouhfi_sif, synthstrip_sif):
+                         gouhfi_sif, synthstrip_sif,
+                         do_parcellation=False):
     """
     Runs the hybrid T1+T2 pipeline for high-fidelity CFD meshing:
     1. Coregister T2 -> T1
@@ -161,7 +162,8 @@ def run_hybrid_gouhfi_T2(t1_path, t2_path, output_path,
         
         # Step 5: Run GOUHFI on the stripped T1
         print("\n--- STEP 5: Running GOUHFI on stripped T1 ---")
-        run_gouhfi(stripped_t1_path, gouhfi_seg_path, gouhfi_sif)
+        run_gouhfi(stripped_t1_path, gouhfi_seg_path, gouhfi_sif,
+                   do_parcellation=do_parcellation)
         
         # Step 6: Merge CSF mask with GOUHFI seg
         print("\n--- STEP 6: Merging T2 CSF with T1 Anatomy ---")

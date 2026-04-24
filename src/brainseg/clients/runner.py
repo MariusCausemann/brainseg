@@ -70,7 +70,7 @@ def main():
         gouhfi_sif = find_container("gouhfi")
         synthstrip_sif = find_container("synthstrip")
         
-        brainseg.run_hybrid_gouhfi_T2(
+        brainseg.tools.run_hybrid_gouhfi_T2(
             args.input.resolve(), 
             args.t2.resolve(), 
             args.output.resolve(), 
