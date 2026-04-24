@@ -17,7 +17,13 @@ RUN curl -L "https://github.com/BBillot/SynthSeg/archive/refs/heads/master.tar.g
 # Bake in the Weights
 RUN mkdir -p models && \
     curl -L "https://github.com/MariusCausemann/brainseg/releases/download/synthseg2.0/synthseg_2.0.h5" \
-    -o models/synthseg_2.0.h5
+    -o models/synthseg_2.0.h5 && \
+    curl -L "https://github.com/MariusCausemann/brainseg/releases/download/synthseg2.0/synthseg_parc_2.0.h5" \
+    -o models/synthseg_parc_2.0.h5 && \
+    curl -L "https://github.com/MariusCausemann/brainseg/releases/download/synthseg2.0/synthseg_robust_2.0.h5" \
+    -o models/synthseg_robust_2.0.h5 \
+    curl -L "https://github.com/MariusCausemann/brainseg/releases/download/synthseg2.0/synthseg_qc_2.0.h5" \
+    -o models/synthseg_qc_2.0.h5
 
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
