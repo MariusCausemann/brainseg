@@ -14,7 +14,7 @@ This pipeline currently supports the following deep-learning-based segmentation 
 
    * **Resolution:** Native (preserves input resolution).
 
-   * **CSF Availability:** Yes (segments ventricles and subarachnoid space CSF).
+   * **CSF Availability:** Yes (segments ventricles and subarachnoid space CSF). Note that the quality of the SAS segmentation depends on the skull stripping (default antspynet). One can pass in a skull-stripped image (running e.g. synthstrip before), and might obtain better results. 
 
 2. [**SynthSeg**](https://github.com/BBillot/SynthSeg)
    Developed by the FreeSurfer team, this tool is famous for working "out of the box" on almost any kind of MRI scan (different contrasts, resolutions, or messy clinical data).
@@ -97,6 +97,10 @@ brainseg -t synthseg -i inputs/sub-01_T1w.nii.gz -o results/sub-01_synthseg.nii.
 ```
 
 *Note: You can optionally provide a custom path to a pre-downloaded `.sif` image using the `--container` flag.*
+
+### Parcellations
+
+`synthseg`, `gouhfi`, `fastsurfer` and `hybrid_gouhfi_T2` also support the `--parc` flag, which enables the cortical segmentation. In this case, the resulting segmentation will contain both the cortical parcellation and the subcortical segmentation.
 
 
 ### Hybrid GOUHFI-CSF Segmentation (`hybrid_gouhfi_T2`)
