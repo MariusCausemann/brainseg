@@ -17,7 +17,7 @@ def resample_image(input_path, output_path, voxel_size):
     nib.save(conformed_img, output_path)
     print("Done!")
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Conform NIfTI to a specific isotropic resolution.")
     parser.add_argument("-i", "--input", required=True, help="Input NIfTI file")
     parser.add_argument("-o", "--output", required=True, help="Output NIfTI file")
@@ -25,3 +25,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     resample_image(args.input, args.output, args.voxel_size)
+
+if __name__ == "__main__":
+    main()

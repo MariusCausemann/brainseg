@@ -1,10 +1,11 @@
 import argparse
 import nibabel as nib
 import numpy as np
-from skimage.filters import threshold_li
-from skimage.measure import label
+
 
 def extract_csf_mask(t2_stripped_path, output_path):
+    from skimage.filters import threshold_li
+    from skimage.measure import label
     print(f"Loading skull-stripped T2: {t2_stripped_path}")
     img = nib.load(t2_stripped_path)
     data = img.get_fdata()

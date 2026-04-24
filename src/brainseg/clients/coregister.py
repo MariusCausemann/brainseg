@@ -1,7 +1,12 @@
 import argparse
-import ants
+import sys
 
 def coregister_images(img1_path, img2_path, output_path):
+    try:
+        import ants
+    except ImportError:
+        sys.exit("Registration requires ants. Please install with e.g. 'pip install antspyx'")
+
     print(f"Loading Fixed Image (img1): {img1_path}")
     fixed_img = ants.image_read(str(img1_path))
     

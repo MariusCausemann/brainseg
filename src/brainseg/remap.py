@@ -36,7 +36,7 @@ def remap(img, old_labels, new_labels):
 
     remapped_data = fastremap.remap(data, mapping)
     
-    return nib.Nifti1Image(remapped_data, img.affine, img.header)
+    return nib.Nifti1Image(remapped_data, img.affine)
 
 def remap_file(infile, old_label_txt, new_label_txt, outfile):
     img = nib.load(infile)

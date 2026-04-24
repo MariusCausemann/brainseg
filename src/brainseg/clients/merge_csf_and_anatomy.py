@@ -1,11 +1,12 @@
 import nibabel as nib
 import numpy as np
 import argparse
-from nbmorph import dilate_labels_spherical, close_labels_spherical, open_labels_spherical
 import nibabel.processing
 
 def merge_csf_and_anatomy(seg_path, csf_mask_path, out_path, csf_label=24, 
                           fill_by_dilation=False):
+    from nbmorph import dilate_labels_spherical, close_labels_spherical, open_labels_spherical
+
     print(f"Loading GOUHFI parcellation: {seg_path}")
     seg = nib.load(seg_path)
     seg_data = seg.get_fdata().astype(np.int32)
@@ -32,7 +33,7 @@ def merge_csf_and_anatomy(seg_path, csf_mask_path, out_path, csf_label=24,
 
     total_volume_mask = combined_data > 0
     filled_volume_mask = open_labels_spherical(total_volume_mask, radius=1)
-    filled_volume_mask = close_labels_spherical(total_volume_mask, radius=5)
+    filled_volume_mask = close_labels_spherical(total_volume_mask, radius=2)
     combined_data[~filled_volume_mask] = 0
     # Find exactly where the holes were
     internal_holes = (filled_volume_mask == True) & (total_volume_mask == False)
