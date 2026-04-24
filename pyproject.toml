@@ -27,7 +27,7 @@ test = []
 dev = ["pdbpp", "ipython", "mypy", "ruff"]
 plot = ["matplotlib","nilearn", "numpy", "pandas"]
 hybrid = ["antspyx", "nbmorph", "scikit-image"]
-all = dev + plot + hybrid
+all = ["brainseg-containers[dev,plot,hybrid]"]
 docs = [
     "jupyter-book<2.0.0",
     "jupytext",
