@@ -39,7 +39,8 @@ RUN pip install --no-cache-dir \
     scipy \
     h5py \
     nibabel \
-    matplotlib
+    matplotlib \
+    "numpy<1.24"
 
 
 # 7. Configuration
