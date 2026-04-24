@@ -14,7 +14,7 @@ def run_fastsurfer(input_path, output_path, sif_path, do_parcellation=False):
         "--bind", f"{ output_path.parent}:/data_out"
     ]
 
-    fs_outfile = "aparc.DKTatlas+aseg.deep.mgz" if do_parcellation else "aseg.auto.mgz"
+    fs_outfile = "aparc.DKTatlas+aseg.deep.mgz"
     # 2. Construct the Internal Command
     internal_cmd = (
         "mkdir -p /tmp/out && "
