@@ -98,6 +98,24 @@ brainseg -t synthseg -i inputs/sub-01_T1w.nii.gz -o results/sub-01_synthseg.nii.
 
 *Note: You can optionally provide a custom path to a pre-downloaded `.sif` image using the `--container` flag.*
 
+### Container Location
+
+By default, containers are downloaded and cached in `~/.brainseg_containers/`. You can override this by setting the `BRAINSEG_CONTAINER_DIR` environment variable:
+
+```bash
+export BRAINSEG_CONTAINER_DIR=/path/to/shared/containers
+brainseg -t gouhfi -i sub-01_T1w.nii.gz -o sub-01_gouhfi.nii.gz
+```
+
+This is useful on HPC clusters where containers should be stored on a shared filesystem. The lookup order is:
+
+1. Current working directory
+2. `.containers/` subdirectory of the current directory
+3. `$BRAINSEG_CONTAINER_DIR` (if set)
+4. `~/.brainseg_containers/` (default fallback)
+
+If no container is found, it will be downloaded automatically to `$BRAINSEG_CONTAINER_DIR` (or `~/.brainseg_containers/` if unset).
+
 ### Parcellations
 
 `synthseg`, `gouhfi`, `fastsurfer` and `hybrid_gouhfi_T2` also support the `--parc` flag, which enables the cortical segmentation. In this case, the resulting segmentation will contain both the cortical parcellation and the subcortical segmentation.

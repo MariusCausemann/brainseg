@@ -2,6 +2,7 @@ import numpy as np
 import nibabel as nib
 import sys
 import shutil
+import os
 from pathlib import Path
 import subprocess
 
@@ -57,14 +58,19 @@ def is_skull_stripped(image_path, brain_threshold_cc=1800):
 def find_container(tool):
     """Finds the container locally, or builds it in ~/.brainseg_containers."""
     image_name = DEFAULT_IMAGES[tool]
-    
+
     # 1. Check current directory and .containers
     if Path(image_name).exists():
         return Path(image_name).resolve()
     elif (Path(".containers") / image_name).exists():
         return (Path(".containers") / image_name).resolve()
-    
-    # 2. Check the global ~/.brainseg_containers directory
+
+    # 2. Check BRAINSEG_CONTAINER_DIR environment variable
+    env_container_dir = os.environ.get("BRAINSEG_CONTAINER_DIR")
+    if env_container_dir and (Path(env_container_dir) / image_name).exists():
+        return (Path(env_container_dir) / image_name).resolve()
+
+    # 3. Check the global ~/.brainseg_containers directory
     global_container_dir = Path.home() / ".brainseg_containers"
     sif_path = global_container_dir / image_name
     
@@ -77,6 +83,9 @@ def find_container(tool):
     if not uri:
         sys.exit(f"Error: No download URI defined for tool '{tool}'.")
         
+    if env_container_dir:
+        global_container_dir = Path(env_container_dir)
+        sif_path = global_container_dir / image_name
     print(f"Building from {uri} to {sif_path}...")
     global_container_dir.mkdir(parents=True, exist_ok=True)
     
