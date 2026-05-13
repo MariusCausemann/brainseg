@@ -3,7 +3,7 @@ import nibabel as nib
 import numpy as np
 
 
-def extract_csf_mask(t2_stripped_path, output_path):
+def extract_csf_mask(t2_stripped_path, output_path=None):
     from skimage.filters import threshold_li
     from skimage.measure import label
     print(f"Loading skull-stripped T2: {t2_stripped_path}")
@@ -42,11 +42,13 @@ def extract_csf_mask(t2_stripped_path, output_path):
     csf_volume_voxels = np.sum(final_csf_mask)
     print(f"Largest CSF component isolated. Size: {csf_volume_voxels} voxels.")
 
-    # 3. Save the result
-    print(f"Saving CSF mask to: {output_path}")
     new_img = nib.Nifti1Image(final_csf_mask, img.affine)
-    nib.save(new_img, output_path)
-    print("Done!")
+
+    # 3. Save the result
+    if output_path is not None:
+        print(f"Saving CSF mask to: {output_path}")
+        nib.save(new_img, output_path)
+    return new_img
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
