@@ -28,8 +28,8 @@ def merge_csf_and_anatomy(seg_path, csf_mask_path, out_path, csf_label=24,
     # Define the "Brain Anatomy" mask 
     brain_anatomy_mask = combined_data > 0
 
-    #  Add the CSF only where there is NO solid brain tissue
-    combined_data[(csf_data == True) & (brain_anatomy_mask == False)] = csf_label
+    #  Override segmentation where CSF mask is nonzero
+    combined_data[(csf_data == True)] = csf_label
 
     total_volume_mask = combined_data > 0
     filled_volume_mask = open_labels_spherical(total_volume_mask, radius=1)

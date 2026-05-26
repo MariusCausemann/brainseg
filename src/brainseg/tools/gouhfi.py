@@ -117,7 +117,7 @@ def run_gouhfi(input_path, output_path, sif_path, do_parcellation=False, folds="
 
 def run_hybrid_gouhfi_T2(t1_path, t2_path, output_path,
                          gouhfi_sif, synthstrip_sif,
-                         do_parcellation=False):
+                         do_parcellation=False, save_tmp_files = False):
     """
     Runs the hybrid T1+T2 pipeline for high-fidelity CFD meshing:
     1. Coregister T2 -> T1
@@ -168,5 +168,13 @@ def run_hybrid_gouhfi_T2(t1_path, t2_path, output_path,
         # Step 6: Merge CSF mask with GOUHFI seg
         print("\n--- STEP 6: Merging T2 CSF with T1 Anatomy ---")
         merge_csf_and_anatomy(gouhfi_seg_path, csf_mask_path, output_path)
+        
+        if save_tmp_files:
+            saved_tmp_dir = output_path.parent / f"segmentation_tmp_files"
+            saved_tmp_dir.mkdir(exist_ok=True)
+            for tmp_file in [coreg_t2_path, stripped_t2_path, csf_mask_path, stripped_t1_path, gouhfi_seg_path]:
+                if tmp_file.exists():
+                    (saved_tmp_dir / tmp_file.name).write_bytes(tmp_file.read_bytes())
+            print(f"Saved intermediate files to {saved_tmp_dir}")
         
         print(f"\nHybrid Pipeline Complete! Successfully generated {output_path.name}")

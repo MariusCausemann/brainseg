@@ -3,7 +3,8 @@ requires = ["setuptools>=61.0.0", "wheel"]
 
 [project]
 dependencies = [
-    "nibabel","fastremap"
+    "nibabel",
+    "fastremap",
 ]
 name = "brainseg-containers"
 version = "1.1.1"
