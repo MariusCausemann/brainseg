@@ -64,6 +64,17 @@ def main():
 
     args = parser.parse_args()
 
+    # Make sure output directory exists, if not create it
+    try:
+        # out_path.parent gets the directory containing the file
+        args.output.resolve().parent.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        print(f"Permission denied: Cannot create directory {args.output.resolve().parent}")
+        raise
+    except OSError as e:
+        print(f"OS error occurred while creating directory {args.output.resolve().parent}: {e}")
+        raise
+
     if args.container:
         sif_path = args.container
     elif "hybrid" not in args.tool:
