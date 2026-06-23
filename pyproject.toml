@@ -27,7 +27,7 @@ brainseg_csfcorrect = "brainseg.clients.merge_csf_and_anatomy:main"
 test = []
 dev = ["pdbpp", "ipython", "mypy", "ruff"]
 plot = ["matplotlib","nilearn", "numpy", "pandas"]
-hybrid = ["antspyx", "nbmorph", "scikit-image"]
+hybrid = ["antspyx", "scikit-image"]
 all = ["brainseg-containers[dev,plot,hybrid]"]
 docs = [
     "jupyter-book<2.0.0",

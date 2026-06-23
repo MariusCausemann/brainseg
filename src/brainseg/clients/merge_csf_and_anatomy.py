@@ -7,11 +7,11 @@ import nibabel.processing
 def merge_csf_and_anatomy(
     seg_path, csf_mask_path, out_path, csf_label=24, fill_by_dilation=False
 ):
-    from nbmorph import (
-        dilate_labels_spherical,
-        close_labels_spherical,
-        open_labels_spherical,
-    )
+    # from nbmorph import (
+    #     dilate_labels_spherical,
+    #     close_labels_spherical,
+    #     open_labels_spherical,
+    # )
 
     print(f"Loading GOUHFI parcellation: {seg_path}")
     seg = nib.load(seg_path)
@@ -50,27 +50,27 @@ def merge_csf_and_anatomy(
     #  Override segmentation where CSF mask is nonzero and not already labeled as ventricles
     combined_data[(csf_data == True) & ~np.isin(combined_data, ventricles)] = csf_label
 
-    total_volume_mask = combined_data > 0
-    filled_volume_mask = open_labels_spherical(total_volume_mask, radius=1)
-    filled_volume_mask = close_labels_spherical(total_volume_mask, radius=2)
-    combined_data[~filled_volume_mask] = 0
+    #total_volume_mask = combined_data > 0
+    #filled_volume_mask = open_labels_spherical(total_volume_mask, radius=1)
+    #filled_volume_mask = close_labels_spherical(total_volume_mask, radius=2)
+    #combined_data[~filled_volume_mask] = 0
     # Find exactly where the holes were
-    internal_holes = (filled_volume_mask == True) & (total_volume_mask == False)
+    #internal_holes = (filled_volume_mask == True) & (total_volume_mask == False)
 
-    num_holes_filled = np.sum(internal_holes)
+    #num_holes_filled = np.sum(internal_holes)
 
-    while num_holes_filled > 0:
-        print(
-            f"Found {num_holes_filled} unsegmented background voxels within the cranium."
-        )
-        if fill_by_dilation:
-            dilated_data = dilate_labels_spherical(combined_data, radius=5)
-            combined_data[internal_holes] = dilated_data[internal_holes]
-        else:
-            combined_data[internal_holes] = 24
-        total_volume_mask = combined_data > 0
-        internal_holes = (filled_volume_mask == True) & (total_volume_mask == False)
-        num_holes_filled = np.sum(internal_holes)
+    # while num_holes_filled > 0:
+    #     print(
+    #         f"Found {num_holes_filled} unsegmented background voxels within the cranium."
+    #     )
+    #     if fill_by_dilation:
+    #         dilated_data = dilate_labels_spherical(combined_data, radius=5)
+    #         combined_data[internal_holes] = dilated_data[internal_holes]
+    #     else:
+    #         combined_data[internal_holes] = 24
+    #     total_volume_mask = combined_data > 0
+    #     internal_holes = (filled_volume_mask == True) & (total_volume_mask == False)
+    #     num_holes_filled = np.sum(internal_holes)
 
     print(f"Saving merged output to: {out_path}")
     new_img = nib.Nifti1Image(combined_data, seg.affine, seg.header)
