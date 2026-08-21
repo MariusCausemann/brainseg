@@ -8,3 +8,5 @@ inputs
 *.egg-info
 __pycache__
 build
+cspell.json
+uv.lock
