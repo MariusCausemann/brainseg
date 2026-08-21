@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-def coregister_images(img1_path, img2_path, output_path):
+def coregister_images(img1_path, img2_path, output_path=None):
     try:
         import ants
     except ImportError:
@@ -23,10 +23,11 @@ def coregister_images(img1_path, img2_path, output_path):
     
     # The output is automatically resampled to match img1's resolution and grid
     registered_img2 = registration['warpedmovout']
-    
-    print(f"Saving co-registered img2 to: {output_path}")
-    ants.image_write(registered_img2, str(output_path))
+    if output_path is not None:
+        print(f"Saving co-registered img2 to: {output_path}")
+        ants.image_write(registered_img2, str(output_path))
     print("Done!")
+    return registered_img2
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Co-register img2 to img1 using ANTsPy.")
