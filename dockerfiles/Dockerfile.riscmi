@@ -51,7 +51,7 @@ EOF
 
 RUN pip uninstall -y gdown
 
-COPY dockerfiles/riscmi_predict.py /opt/riscmi/riscmi_predict.py
+COPY src/brainseg/data/riscmi/riscmi_predict.py /opt/riscmi/riscmi_predict.py
 
 # nnU-Net warns if these are unset; they are not used by predict_from_modelfolder
 ENV nnUNet_raw="/tmp/nnUNet_raw" \

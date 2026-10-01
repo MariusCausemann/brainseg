@@ -5,6 +5,7 @@ import shutil
 import os
 from pathlib import Path
 import subprocess
+from importlib import resources
 
 # Default container names (users can override with --container)
 DEFAULT_IMAGES = {
@@ -27,6 +28,10 @@ CONTAINER_URIS = {
 
 # Images in private GHCR packages; pulling them requires a registry login
 PRIVATE_TOOLS = {"riscmi_arteries"}
+
+# Apptainer definition files (shipped with the package) used to build a container locally
+# when it cannot be pulled, relative to brainseg/data
+LOCAL_RECIPES = {"riscmi_arteries": "riscmi/riscmi.def"}
 
 def is_skull_stripped(image_path, brain_threshold_cc=1800):
     """
@@ -106,23 +111,47 @@ def find_container(tool, build=True):
     print(f"Building from {uri} to {sif_path}...")
     if tool in PRIVATE_TOOLS:
         print(
-            f"Note: '{tool}' is a private image. If the build fails with an authentication "
+            f"Note: '{tool}' is a private image. If the pull fails with an authentication "
             "error, ask for access and log in with a GitHub token (read:packages scope):\n"
             "  apptainer registry login --username <github-user> docker://ghcr.io\n"
             "or set APPTAINER_DOCKER_USERNAME and APPTAINER_DOCKER_PASSWORD."
         )
     global_container_dir.mkdir(parents=True, exist_ok=True)
-    
+
     runtime = get_container_runtime()
-    
-    # Execute the apptainer/singularity build command
     build_cmd = [runtime, "build", str(sif_path), uri]
-    run_command(build_cmd, f"Building SIF container for {tool}")
-    
+
+    if tool in LOCAL_RECIPES:
+        # try the registry first, then fall back to building from the shipped recipe
+        if subprocess.run(build_cmd).returncode != 0:
+            print(f"Could not pull {uri}; building '{tool}' locally instead.")
+            build_container_locally(tool, sif_path, runtime)
+    else:
+        run_command(build_cmd, f"Building SIF container for {tool}")
+
     if sif_path.exists():
         return sif_path.resolve()
     else:
         sys.exit(f"Error: Failed to build container to {sif_path}.")
+
+
+def build_container_locally(tool, sif_path, runtime=None):
+    """Builds the container for `tool` from its Apptainer definition file in brainseg/data."""
+    recipe = resources.files("brainseg.data") / LOCAL_RECIPES[tool]
+    runtime = runtime or get_container_runtime()
+    with resources.as_file(recipe.parent) as recipe_dir:
+        # the definition file refers to its sibling files relative to the build directory
+        cmd = [runtime, "build", str(Path(sif_path).resolve()), recipe.name]
+        print(
+            f"--- Building {tool} from {recipe.name}: this downloads several GB "
+            "(PyTorch and the model weights) and takes a while ---"
+        )
+        try:
+            subprocess.run(cmd, check=True, cwd=recipe_dir)
+        except subprocess.CalledProcessError as e:
+            Path(sif_path).unlink(missing_ok=True)
+            sys.exit(f"Error: local build of '{tool}' failed with exit code {e.returncode}")
+
 
 def apply_brain_mask(image_path, mask_path, output_path):
     print(f"Applying brain mask {mask_path.name} to {image_path.name}...")
