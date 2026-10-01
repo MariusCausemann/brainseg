@@ -4,7 +4,11 @@ import sys
 import shutil
 import os
 from pathlib import Path
+import resource
+import signal
+import ssl
 import subprocess
+import tempfile
 from importlib import resources
 
 # Default container names (users can override with --container)
@@ -135,21 +139,42 @@ def find_container(tool, build=True):
         sys.exit(f"Error: Failed to build container to {sif_path}.")
 
 
+def _host_ca_bundle():
+    """Path of the host's CA bundle, or None."""
+    candidates = [
+        os.environ.get("SSL_CERT_FILE"),
+        ssl.get_default_verify_paths().cafile,
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/ssl/cert.pem",
+    ]
+    return next((Path(c) for c in candidates if c and Path(c).is_file()), None)
+
+
 def build_container_locally(tool, sif_path, runtime=None):
     """Builds the container for `tool` from its Apptainer definition file in brainseg/data."""
     recipe = resources.files("brainseg.data") / LOCAL_RECIPES[tool]
     runtime = runtime or get_container_runtime()
-    with resources.as_file(recipe.parent) as recipe_dir:
-        # the definition file refers to its sibling files relative to the build directory
-        cmd = [runtime, "build", str(Path(sif_path).resolve()), recipe.name]
-        print(
-            f"--- Building {tool} from {recipe.name}: this downloads several GB "
-            "(PyTorch and the model weights) and takes a while ---"
-        )
+    sif_path = Path(sif_path).resolve()
+    print(
+        f"--- Building {tool} from {recipe.name}: this downloads several GB "
+        "(PyTorch and the model weights) and takes a while ---"
+    )
+    # Build in a scratch copy of the recipe directory: the definition file refers to its sibling
+    # files relative to the build directory, and also gets the host CA bundle so that pip can
+    # download behind networks that intercept TLS.
+    with tempfile.TemporaryDirectory(prefix="brainseg_build_") as tmp:
+        with resources.as_file(recipe.parent) as recipe_dir:
+            shutil.copytree(recipe_dir, tmp, dirs_exist_ok=True)
+        ca_bundle = _host_ca_bundle()
+        if ca_bundle:
+            shutil.copy(ca_bundle, Path(tmp) / "ca-bundle.crt")
+        else:
+            (Path(tmp) / "ca-bundle.crt").touch()
         try:
-            subprocess.run(cmd, check=True, cwd=recipe_dir)
+            subprocess.run([runtime, "build", str(sif_path), recipe.name], check=True, cwd=tmp)
         except subprocess.CalledProcessError as e:
-            Path(sif_path).unlink(missing_ok=True)
+            sif_path.unlink(missing_ok=True)
             sys.exit(f"Error: local build of '{tool}' failed with exit code {e.returncode}")
 
 
@@ -186,6 +211,18 @@ def run_command(cmd, description):
         subprocess.run(cmd, check=True)
         print("Done.\n")
     except subprocess.CalledProcessError as e:
+        if e.returncode < 0:
+            sig = signal.Signals(-e.returncode).name
+            print(f"Error: {description} was killed by {sig}")
+            limit, _ = resource.getrlimit(resource.RLIMIT_AS)
+            if limit != resource.RLIM_INFINITY:
+                print(
+                    f"Hint: this shell limits virtual memory to {limit / 2**30:.0f} GiB "
+                    "(ulimit -v). CUDA/PyTorch map much more address space than they use, "
+                    "which can crash with SIGSEGV. Lift the limit, e.g. in Slurm jobs with "
+                    "'srun --propagate=NONE ...'."
+                )
+            sys.exit(128 - e.returncode)
         print(f"Error: {description} failed with exit code {e.returncode}")
         sys.exit(e.returncode)
     except FileNotFoundError:

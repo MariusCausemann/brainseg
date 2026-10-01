@@ -64,6 +64,8 @@ def run_riscmi_arteries(
     cmd = [
         get_container_runtime(), "exec",
         "--cleanenv",
+        # $HOME is bound by default: ignore ~/.local packages (e.g. a different torch)
+        "--env", "PYTHONNOUSERSITE=1",
         *gpu_args,
         *bind_args,
         str(sif_path),

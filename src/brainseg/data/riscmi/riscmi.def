@@ -2,6 +2,8 @@
 # dockerfiles/Dockerfile.riscmi (keep the two in sync). Must be built from this directory,
 # so that riscmi_predict.py is found:
 #   cd src/brainseg/data/riscmi && apptainer build brainseg_riscmi.sif riscmi.def
+# ca-bundle.crt is the host's CA bundle (staged by brainseg; may be empty). It lets pip/gdown
+# trust networks that intercept TLS with their own CA.
 # Weights (c) RISC Software GmbH, "Proprietary": they are downloaded from the authors' Google
 # Drive at build time. Do NOT publish the resulting image without permission.
 Bootstrap: docker
@@ -9,8 +11,10 @@ From: python:3.11-slim
 
 %files
     riscmi_predict.py /opt/riscmi/riscmi_predict.py
+    ca-bundle.crt /opt/riscmi/host-ca-bundle.crt
 
 %environment
+    export PYTHONNOUSERSITE=1
     export MODEL_DIR="/opt/riscmi/Dataset606_MRIVessels/nnUNetTrainerDA5__nnUNetPlans__3d_fullres"
     export nnUNet_raw="/tmp/nnUNet_raw"
     export nnUNet_preprocessed="/tmp/nnUNet_preprocessed"
@@ -18,10 +22,20 @@ From: python:3.11-slim
 
 %post
     export MODEL_DIR="/opt/riscmi/Dataset606_MRIVessels/nnUNetTrainerDA5__nnUNetPlans__3d_fullres"
+    if [ -s /opt/riscmi/host-ca-bundle.crt ]; then
+        export PIP_CERT=/opt/riscmi/host-ca-bundle.crt REQUESTS_CA_BUNDLE=/opt/riscmi/host-ca-bundle.crt
+        export SSL_CERT_FILE=/opt/riscmi/host-ca-bundle.crt
+        echo "Using the host CA bundle for downloads"
+    else
+        echo "WARNING: no host CA bundle found; downloads may fail behind a TLS-intercepting proxy"
+    fi
 
-    # PyTorch (CUDA 12.1 build, also runs on CPU); GPU use needs `--nv` and a CUDA 12.1 driver
-    pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-    pip install --no-cache-dir nnunetv2==2.8.1 SimpleITK==2.5.* gdown==6.4.0
+    # PyTorch (CUDA 12.1 build, also runs on CPU); GPU use needs `--nv` and a CUDA 12.1 driver.
+    # Everything is resolved in ONE pip call with torch pinned: installing nnunetv2 afterwards
+    # would otherwise replace torch with the latest release from PyPI.
+    pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu121 \
+        torch==2.5.1+cu121 nnunetv2==2.8.1 SimpleITK==2.5.* gdown==6.4.0
+    python3 -c "import torch; assert torch.__version__ == '2.5.1+cu121', torch.__version__"
 
     # Download the M_S weights (only checkpoint_final of each fold) and verify them
     mkdir -p "$MODEL_DIR" && cd "$MODEL_DIR"
@@ -59,6 +73,7 @@ PYEOF
 
     pip uninstall -y gdown
     pip cache purge || true
+    rm -f /opt/riscmi/host-ca-bundle.crt
 
 %runscript
     exec python3 /opt/riscmi/riscmi_predict.py "$@"

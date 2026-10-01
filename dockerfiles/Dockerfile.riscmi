@@ -5,12 +5,13 @@
 # without permission.
 FROM python:3.11-slim
 
-# Install PyTorch (CUDA 12.1 build, also runs on CPU); versions match the environment the model
-# was validated in. GPU use needs `apptainer exec --nv` and an NVIDIA driver supporting CUDA 12.1.
-RUN pip install --no-cache-dir \
-    torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-
-RUN pip install --no-cache-dir nnunetv2==2.8.1 SimpleITK==2.5.* gdown==6.4.0
+# PyTorch (CUDA 12.1 build, also runs on CPU); versions match the environment the model was
+# validated in. GPU use needs `apptainer exec --nv` and an NVIDIA driver supporting CUDA 12.1.
+# Everything is resolved in ONE pip call with torch pinned: installing nnunetv2 afterwards would
+# otherwise replace torch with the latest release from PyPI.
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu121 \
+    torch==2.5.1+cu121 nnunetv2==2.8.1 SimpleITK==2.5.* gdown==6.4.0 && \
+    python3 -c "import torch; assert torch.__version__ == '2.5.1+cu121', torch.__version__"
 
 # Download the M_S weights (only checkpoint_final of each fold) from the authors' Google Drive
 # and verify them against the files the model was validated with.
@@ -54,6 +55,7 @@ RUN pip uninstall -y gdown
 COPY src/brainseg/data/riscmi/riscmi_predict.py /opt/riscmi/riscmi_predict.py
 
 # nnU-Net warns if these are unset; they are not used by predict_from_modelfolder
+ENV PYTHONNOUSERSITE=1
 ENV nnUNet_raw="/tmp/nnUNet_raw" \
     nnUNet_preprocessed="/tmp/nnUNet_preprocessed" \
     nnUNet_results="/tmp/nnUNet_results"
