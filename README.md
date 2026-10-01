@@ -43,6 +43,18 @@ This pipeline currently supports the following deep-learning-based segmentation 
    * **Resolution:** Native (preserves input resolution).
    * **Output:** Skull-stripped image and binary brain mask.
 
+6. [**risc-mi cerebral arteries (M<sub>S</sub>)**](https://github.com/risc-mi/cerebral-artery-segmentation/tree/main/miua2024a) (`riscmi_arteries`)
+   An nnU-Net model from RISC Software GmbH that segments the cerebral arteries from **structural** MRI (T1w, T2w, FLAIR, PD), without needing an angiographic scan. It was trained on IXI and TubeTK subjects with labels derived from the matching TOF-MRA.
+   * **Resolution:** Predicted at 0.8 x 0.47 x 0.47 mm internally; the output is returned on the input grid.
+   * **Output:** Binary vessel mask (0 = background, 1 = artery). `--save_prob` additionally writes the vessel probability map as `<output>_prob.nii.gz`.
+   * **Orientation:** The model is not orientation-agnostic. The wrapper reorients the input to RAI (as recommended by the authors) and maps the prediction back.
+   * **Runtime:** The default ensemble (5 folds, each with 8 mirrored test-time-augmentation passes) is expensive at the model's 0.47 mm resolution. Timings for a 0.5 mm whole-head T1w (512x512x368):
+     * `--gpu` (NVIDIA A100): ~5 min in total. Requires an NVIDIA driver supporting CUDA 12.1; the container is run with `--nv`.
+     * CPU, 128 cores (AMD EPYC 7601): ~80 min and ~110 GB RAM. On the CPU the 40 passes are spread over worker processes with a few threads each, which is several times faster than one multi-threaded process and gives the same result. The number of workers is chosen from the available CPUs and memory (~4 GB per worker); reduce it with `--workers N` if memory is short.
+   * **Faster, lower-quality options:** `--no_tta` (8x fewer passes) and `--folds` (e.g. `--folds 0`). On our test scans, dropping TTA from the 5-fold ensemble changed the mask noticeably (Dice ~0.92 against the default, with more fragmented vessels), and a single fold without TTA much more (Dice ~0.72-0.81), so we recommend the default.
+   * **Access:** The model weights are © RISC Software GmbH and not openly licensed, so this container is hosted in a **private** registry package and is available on request. Log in before first use with a GitHub token that has the `read:packages` scope: `apptainer registry login --username <github-user> docker://ghcr.io`.
+   * **Citation:** Alshenoudy, A., Sabrowsky-Hirsch, B., Scharinger, J., Thumfart, S., Giretzlehner, M. (2024). Towards Segmenting Cerebral Arteries from Structural MRI. MIUA 2024. Springer Nature.
+
 ## Comparison Output
 
 The pipeline can automatically generate a comparison grid so you can quickly inspect the differences between the tools.
@@ -82,7 +94,7 @@ The package provides a simple command-line interface. The first time you run a s
 brainseg -t <tool_name> -i <input_file.nii.gz> -o <output_file.nii.gz>
 ```
 
-**Available Tools:** `synthseg`, `gouhfi`, `fastsurfer`, `simnibs`, `synthstrip`, `hybrid_gouhfi_T2`
+**Available Tools:** `synthseg`, `gouhfi`, `fastsurfer`, `simnibs`, `synthstrip`, `hybrid_gouhfi_T2`, `riscmi_arteries`
 
 ### Examples
 

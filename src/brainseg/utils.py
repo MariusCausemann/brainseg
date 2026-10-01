@@ -12,7 +12,8 @@ DEFAULT_IMAGES = {
     "gouhfi": "brainseg_gouhfi.sif",
     "fastsurfer": "brainseg_fastsurfer.sif",
     "simnibs": "brainseg_simnibs.sif",
-    "synthstrip": "freesurfer_synthstrip.sif"
+    "synthstrip": "freesurfer_synthstrip.sif",
+    "riscmi_arteries": "brainseg_riscmi.sif",
 }
 
 CONTAINER_URIS = {
@@ -20,8 +21,12 @@ CONTAINER_URIS = {
     "gouhfi": "docker://ghcr.io/mariuscausemann/brainseg:gouhfi",
     "fastsurfer": "docker://ghcr.io/mariuscausemann/brainseg:fastsurfer",
     "simnibs": "docker://ghcr.io/mariuscausemann/brainseg:simnibs",
-    "synthstrip": "docker://freesurfer/synthstrip:latest"
+    "synthstrip": "docker://freesurfer/synthstrip:latest",
+    "riscmi_arteries": "docker://ghcr.io/mariuscausemann/brainseg-riscmi:latest",
 }
+
+# Images in private GHCR packages; pulling them requires a registry login
+PRIVATE_TOOLS = {"riscmi_arteries"}
 
 def is_skull_stripped(image_path, brain_threshold_cc=1800):
     """
@@ -55,8 +60,12 @@ def is_skull_stripped(image_path, brain_threshold_cc=1800):
 
 
 
-def find_container(tool):
-    """Finds the container locally, or builds it in ~/.brainseg_containers."""
+def find_container(tool, build=True):
+    """Finds the container locally, or builds it in ~/.brainseg_containers.
+
+    With build=False (e.g. on an air-gapped machine) a missing container raises
+    FileNotFoundError instead of pulling from the registry.
+    """
     image_name = DEFAULT_IMAGES[tool]
 
     # 1. Check current directory and .containers
@@ -78,6 +87,14 @@ def find_container(tool):
         return sif_path.resolve()
         
     # 3. If missing entirely, attempt to build it from the Docker registry
+    if not build:
+        searched = [Path.cwd(), Path(".containers").resolve()]
+        if env_container_dir:
+            searched.append(Path(env_container_dir))
+        searched.append(global_container_dir)
+        raise FileNotFoundError(
+            f"Container '{image_name}' not found in " + ", ".join(map(str, searched))
+        )
     print(f"Container '{image_name}' not found locally.")
     uri = CONTAINER_URIS.get(tool)
     if not uri:
@@ -87,6 +104,13 @@ def find_container(tool):
         global_container_dir = Path(env_container_dir)
         sif_path = global_container_dir / image_name
     print(f"Building from {uri} to {sif_path}...")
+    if tool in PRIVATE_TOOLS:
+        print(
+            f"Note: '{tool}' is a private image. If the build fails with an authentication "
+            "error, ask for access and log in with a GitHub token (read:packages scope):\n"
+            "  apptainer registry login --username <github-user> docker://ghcr.io\n"
+            "or set APPTAINER_DOCKER_USERNAME and APPTAINER_DOCKER_PASSWORD."
+        )
     global_container_dir.mkdir(parents=True, exist_ok=True)
     
     runtime = get_container_runtime()
