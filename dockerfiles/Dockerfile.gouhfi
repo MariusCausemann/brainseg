@@ -11,15 +11,17 @@ RUN apt-get update && apt-get install -y \
 
 
 # bake in ANTsPyNet Keras Weights
-# ANTsPyNet looks for weights in ~/.keras/ANTsXNet/ by default.
-# create a global directory for this and point HOME to it.
+# ANTsPyNet looks for weights in <cache>/<id>.h5 (networks) and <cache>/<id>.nii.gz (data).
+# The default cache is ~/.keras/ANTsXNet, which is patched to this directory below.
 WORKDIR /opt/antspynet_cache/.keras/ANTsXNet
 RUN aria2c -x 16 -s 16 -o brainExtractionRobustT1.h5 "https://ndownloader.figshare.com/files/34821874" && \
-    aria2c -x 16 -s 16 -o S_template3_resampled.nii "https://ndownloader.figshare.com/files/22597175"
+    aria2c -x 16 -s 16 -o S_template3.nii.gz "https://ndownloader.figshare.com/files/22597175"
 
 # Install PyTorch (Native CPU)
-RUN pip install --no-cache-dir \
-    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# The base image's pip is too old for the metadata of current wheels (e.g. typing_extensions)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
 
 ENV GOUHFI_HOME="/opt/gouhfi"
 WORKDIR $GOUHFI_HOME/trained_model
@@ -87,8 +89,11 @@ RUN git clone https://github.com/mafortin/GOUHFI.git /tmp/GOUHFI_repo && \
     rm -rf /tmp/GOUHFI_repo && \
     pip install --no-deps --no-cache-dir antspynet .
 
-# We set HOME to /opt/antspynet_cache so ANTsPyNet finds the .keras folder automatically.
-ENV HOME="/opt/antspynet_cache"
+# Point ANTsPyNet's default cache (~/.keras/ANTsXNet) to the baked weights. Setting HOME
+# is not enough, since Apptainer always overrides HOME with the host user's home directory.
+ARG ANTSXNET_DATA=/usr/local/lib/python3.10/site-packages/antspynet/utilities/get_antsxnet_data.py
+RUN sed -i "s|os.path.expanduser('~'), '.keras'|'/opt/antspynet_cache/.keras'|" $ANTSXNET_DATA && \
+    grep -q "'/opt/antspynet_cache/.keras', 'ANTsXNet'" $ANTSXNET_DATA
 
 # 9. Entrypoint
 CMD ["run_gouhfi", "--help"]
