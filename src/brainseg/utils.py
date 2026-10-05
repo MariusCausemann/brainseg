@@ -4,7 +4,12 @@ import sys
 import shutil
 import os
 from pathlib import Path
+import resource
+import signal
+import ssl
 import subprocess
+import tempfile
+from importlib import resources
 
 # Default container names (users can override with --container)
 DEFAULT_IMAGES = {
@@ -12,7 +17,8 @@ DEFAULT_IMAGES = {
     "gouhfi": "brainseg_gouhfi.sif",
     "fastsurfer": "brainseg_fastsurfer.sif",
     "simnibs": "brainseg_simnibs.sif",
-    "synthstrip": "freesurfer_synthstrip.sif"
+    "synthstrip": "freesurfer_synthstrip.sif",
+    "riscmi_arteries": "brainseg_riscmi.sif",
 }
 
 CONTAINER_URIS = {
@@ -20,8 +26,16 @@ CONTAINER_URIS = {
     "gouhfi": "docker://ghcr.io/mariuscausemann/brainseg:gouhfi",
     "fastsurfer": "docker://ghcr.io/mariuscausemann/brainseg:fastsurfer",
     "simnibs": "docker://ghcr.io/mariuscausemann/brainseg:simnibs",
-    "synthstrip": "docker://freesurfer/synthstrip:latest"
+    "synthstrip": "docker://freesurfer/synthstrip:latest",
+    "riscmi_arteries": "docker://ghcr.io/mariuscausemann/brainseg-riscmi:latest",
 }
+
+# Images in private GHCR packages; pulling them requires a registry login
+PRIVATE_TOOLS = {"riscmi_arteries"}
+
+# Apptainer definition files (shipped with the package) used to build a container locally
+# when it cannot be pulled, relative to brainseg/data
+LOCAL_RECIPES = {"riscmi_arteries": "riscmi/riscmi.def"}
 
 def is_skull_stripped(image_path, brain_threshold_cc=1800):
     """
@@ -55,8 +69,12 @@ def is_skull_stripped(image_path, brain_threshold_cc=1800):
 
 
 
-def find_container(tool):
-    """Finds the container locally, or builds it in ~/.brainseg_containers."""
+def find_container(tool, build=True):
+    """Finds the container locally, or builds it in ~/.brainseg_containers.
+
+    With build=False (e.g. on an air-gapped machine) a missing container raises
+    FileNotFoundError instead of pulling from the registry.
+    """
     image_name = DEFAULT_IMAGES[tool]
 
     # 1. Check current directory and .containers
@@ -78,6 +96,14 @@ def find_container(tool):
         return sif_path.resolve()
         
     # 3. If missing entirely, attempt to build it from the Docker registry
+    if not build:
+        searched = [Path.cwd(), Path(".containers").resolve()]
+        if env_container_dir:
+            searched.append(Path(env_container_dir))
+        searched.append(global_container_dir)
+        raise FileNotFoundError(
+            f"Container '{image_name}' not found in " + ", ".join(map(str, searched))
+        )
     print(f"Container '{image_name}' not found locally.")
     uri = CONTAINER_URIS.get(tool)
     if not uri:
@@ -87,18 +113,70 @@ def find_container(tool):
         global_container_dir = Path(env_container_dir)
         sif_path = global_container_dir / image_name
     print(f"Building from {uri} to {sif_path}...")
+    if tool in PRIVATE_TOOLS:
+        print(
+            f"Note: '{tool}' is a private image. If the pull fails with an authentication "
+            "error, ask for access and log in with a GitHub token (read:packages scope):\n"
+            "  apptainer registry login --username <github-user> docker://ghcr.io\n"
+            "or set APPTAINER_DOCKER_USERNAME and APPTAINER_DOCKER_PASSWORD."
+        )
     global_container_dir.mkdir(parents=True, exist_ok=True)
-    
+
     runtime = get_container_runtime()
-    
-    # Execute the apptainer/singularity build command
     build_cmd = [runtime, "build", str(sif_path), uri]
-    run_command(build_cmd, f"Building SIF container for {tool}")
-    
+
+    if tool in LOCAL_RECIPES:
+        # try the registry first, then fall back to building from the shipped recipe
+        if subprocess.run(build_cmd).returncode != 0:
+            print(f"Could not pull {uri}; building '{tool}' locally instead.")
+            build_container_locally(tool, sif_path, runtime)
+    else:
+        run_command(build_cmd, f"Building SIF container for {tool}")
+
     if sif_path.exists():
         return sif_path.resolve()
     else:
         sys.exit(f"Error: Failed to build container to {sif_path}.")
+
+
+def _host_ca_bundle():
+    """Path of the host's CA bundle, or None."""
+    candidates = [
+        os.environ.get("SSL_CERT_FILE"),
+        ssl.get_default_verify_paths().cafile,
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/ssl/cert.pem",
+    ]
+    return next((Path(c) for c in candidates if c and Path(c).is_file()), None)
+
+
+def build_container_locally(tool, sif_path, runtime=None):
+    """Builds the container for `tool` from its Apptainer definition file in brainseg/data."""
+    recipe = resources.files("brainseg.data") / LOCAL_RECIPES[tool]
+    runtime = runtime or get_container_runtime()
+    sif_path = Path(sif_path).resolve()
+    print(
+        f"--- Building {tool} from {recipe.name}: this downloads several GB "
+        "(PyTorch and the model weights) and takes a while ---"
+    )
+    # Build in a scratch copy of the recipe directory: the definition file refers to its sibling
+    # files relative to the build directory, and also gets the host CA bundle so that pip can
+    # download behind networks that intercept TLS.
+    with tempfile.TemporaryDirectory(prefix="brainseg_build_") as tmp:
+        with resources.as_file(recipe.parent) as recipe_dir:
+            shutil.copytree(recipe_dir, tmp, dirs_exist_ok=True)
+        ca_bundle = _host_ca_bundle()
+        if ca_bundle:
+            shutil.copy(ca_bundle, Path(tmp) / "ca-bundle.crt")
+        else:
+            (Path(tmp) / "ca-bundle.crt").touch()
+        try:
+            subprocess.run([runtime, "build", str(sif_path), recipe.name], check=True, cwd=tmp)
+        except subprocess.CalledProcessError as e:
+            sif_path.unlink(missing_ok=True)
+            sys.exit(f"Error: local build of '{tool}' failed with exit code {e.returncode}")
+
 
 def apply_brain_mask(image_path, mask_path, output_path):
     print(f"Applying brain mask {mask_path.name} to {image_path.name}...")
@@ -133,6 +211,18 @@ def run_command(cmd, description):
         subprocess.run(cmd, check=True)
         print("Done.\n")
     except subprocess.CalledProcessError as e:
+        if e.returncode < 0:
+            sig = signal.Signals(-e.returncode).name
+            print(f"Error: {description} was killed by {sig}")
+            limit, _ = resource.getrlimit(resource.RLIMIT_AS)
+            if limit != resource.RLIM_INFINITY:
+                print(
+                    f"Hint: this shell limits virtual memory to {limit / 2**30:.0f} GiB "
+                    "(ulimit -v). CUDA/PyTorch map much more address space than they use, "
+                    "which can crash with SIGSEGV. Lift the limit, e.g. in Slurm jobs with "
+                    "'srun --propagate=NONE ...'."
+                )
+            sys.exit(128 - e.returncode)
         print(f"Error: {description} failed with exit code {e.returncode}")
         sys.exit(e.returncode)
     except FileNotFoundError:

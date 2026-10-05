@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1
+# risc-mi M_S cerebral-artery segmentation for structural MRI (MIUA 2024)
+# https://github.com/risc-mi/cerebral-artery-segmentation/tree/main/miua2024a
+# Weights (c) RISC Software GmbH, labelled "Proprietary" - do NOT publish this image publicly
+# without permission.
+FROM python:3.11-slim
+
+# PyTorch (CUDA 12.1 build, also runs on CPU); versions match the environment the model was
+# validated in. GPU use needs `apptainer exec --nv` and an NVIDIA driver supporting CUDA 12.1.
+# Everything is resolved in ONE pip call with torch pinned: installing nnunetv2 afterwards would
+# otherwise replace torch with the latest release from PyPI.
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu121 \
+    torch==2.5.1+cu121 nnunetv2==2.8.1 SimpleITK==2.5.* gdown==6.4.0 && \
+    python3 -c "import torch; assert torch.__version__ == '2.5.1+cu121', torch.__version__"
+
+# Download the M_S weights (only checkpoint_final of each fold) from the authors' Google Drive
+# and verify them against the files the model was validated with.
+ENV MODEL_DIR="/opt/riscmi/Dataset606_MRIVessels/nnUNetTrainerDA5__nnUNetPlans__3d_fullres"
+WORKDIR $MODEL_DIR
+RUN gdown 1-7YodJQzlP0wJit2ntyAGK0BpBSgW_Oz -O dataset.json && \
+    gdown 1-VLpGevroKTN0OzcD1Yf38i2u1su3Smy -O plans.json && \
+    mkdir fold_0 fold_1 fold_2 fold_3 fold_4 && \
+    gdown 13Xa-H4Ldivv9Z86FbFZaOYWM_htxunTY -O fold_0/checkpoint_final.pth && \
+    gdown 11w5LeGoRgxH7d7gpN6aJOS74KGpxDEUN -O fold_1/checkpoint_final.pth && \
+    gdown 1t2833bp1bT68Q4g6WjncNQt8IPGXexWF -O fold_2/checkpoint_final.pth && \
+    gdown 14hCrIeO0ylYYLc74G2O84sxx42OylmtA -O fold_3/checkpoint_final.pth && \
+    gdown 1N4sD6eLMOns5Byrg4dV63z0X8dOZz1OO -O fold_4/checkpoint_final.pth && \
+    printf '%s\n' \
+    "0e06a7466937e1e5ccdae652d50158374d84f2180439b0d473439d89732f38d9  dataset.json" \
+    "9530589b590584949cb1d579ef6e9ed8257e556a2bf63349843ed7d17ec1726e  plans.json" \
+    "c9b9b3ab173a5a0065363bc626bf3aeb1f2b2e484de42d5615e8c841fc443fe3  fold_0/checkpoint_final.pth" \
+    "4c9f220c6725a58c070b4278035f24577c9ffabe52efea37ca13880eb17b5507  fold_1/checkpoint_final.pth" \
+    "52be9b3dd6448d90db68c56033c27f806ac276d63454ee39c96d5fe7e32560e4  fold_2/checkpoint_final.pth" \
+    "33fc764b7531f33d54d741de67cf2054388d56beb24abc4e9cee05e7ded33918  fold_3/checkpoint_final.pth" \
+    "a643f5f6392b9abb3b8367ddcb1a9aae8b4b8f18a8c98f8d2da2558588418732  fold_4/checkpoint_final.pth" \
+    | sha256sum -c - && \
+    python3 - <<'EOF'
+import torch
+import os
+# Define the keys required for nnU-Net inference
+KEEP_KEYS = ['network_weights', 'init_args', 'trainer_name', 'inference_allowed_mirroring_axes']
+for root, _, files in os.walk('.'):
+    for f in files:
+        if f.endswith('.pth'):
+            path = os.path.join(root, f)
+            # Load to CPU to keep memory footprint low during build
+            ckpt = torch.load(path, map_location='cpu', weights_only=False)
+            slim_ckpt = {k: v for k, v in ckpt.items() if k in KEEP_KEYS}
+            torch.save(slim_ckpt, path)
+            print(f"Successfully stripped: {path}")
+EOF
+
+RUN pip uninstall -y gdown
+
+COPY src/brainseg/data/riscmi/riscmi_predict.py /opt/riscmi/riscmi_predict.py
+
+# nnU-Net warns if these are unset; they are not used by predict_from_modelfolder
+ENV PYTHONNOUSERSITE=1
+ENV nnUNet_raw="/tmp/nnUNet_raw" \
+    nnUNet_preprocessed="/tmp/nnUNet_preprocessed" \
+    nnUNet_results="/tmp/nnUNet_results"
+
+WORKDIR /opt/riscmi
+CMD ["python3", "/opt/riscmi/riscmi_predict.py", "--help"]

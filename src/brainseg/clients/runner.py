@@ -45,6 +45,31 @@ def main():
     subparsers.add_parser("simnibs", parents=[common_parser], help="Run SimNIBS")
     subparsers.add_parser("synthstrip", parents=[common_parser], help="Run SynthStrip")
 
+    riscmi_parser = subparsers.add_parser(
+        "riscmi_arteries",
+        parents=[common_parser],
+        help="Run risc-mi cerebral artery segmentation (M_S, structural MRI)",
+    )
+    riscmi_parser.add_argument(
+        "--folds", default="0 1 2 3 4", help="Model folds to ensemble (default: '0 1 2 3 4')"
+    )
+    riscmi_parser.add_argument(
+        "--no_tta", action="store_true", help="Disable test-time augmentation (faster)"
+    )
+    riscmi_parser.add_argument(
+        "--save_prob",
+        action="store_true",
+        help="Also save the vessel probability map as <output>_prob.nii.gz",
+    )
+    riscmi_parser.add_argument(
+        "--gpu", action="store_true", help="Run on an NVIDIA GPU (much faster than CPU)"
+    )
+    riscmi_parser.add_argument(
+        "--workers",
+        type=int,
+        help="Number of CPU worker processes (default: chosen from available CPUs and memory)",
+    )
+
     hybrid_parser = subparsers.add_parser(
         "hybrid_gouhfi_T2",
         parents=[common_parser, parc_parser],
@@ -113,6 +138,17 @@ def main():
     elif args.tool == "synthstrip":
         brainseg.tools.run_synthstrip(
             args.input.resolve(), args.output.resolve(), sif_path
+        )
+    elif args.tool == "riscmi_arteries":
+        brainseg.tools.run_riscmi_arteries(
+            args.input.resolve(),
+            args.output.resolve(),
+            sif_path,
+            folds=args.folds,
+            tta=not args.no_tta,
+            save_prob=args.save_prob,
+            gpu=args.gpu,
+            workers=args.workers,
         )
     elif args.tool == "hybrid_gouhfi_T2":
         # We need both containers for the hybrid pipeline
